@@ -1,0 +1,53 @@
+K 25
+svn:wc:ra_dav:version-url
+V 123
+/svn/IGFEB10/!svn/ver/2932/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures
+END
+entity.h
+K 25
+svn:wc:ra_dav:version-url
+V 132
+/svn/IGFEB10/!svn/ver/1693/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/entity.h
+END
+renderentity.h
+K 25
+svn:wc:ra_dav:version-url
+V 138
+/svn/IGFEB10/!svn/ver/2636/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/renderentity.h
+END
+rendererentity.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 142
+/svn/IGFEB10/!svn/ver/2637/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/rendererentity.cpp
+END
+entitymanager.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 141
+/svn/IGFEB10/!svn/ver/1631/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/entitymanager.cpp
+END
+rendererentity.h
+K 25
+svn:wc:ra_dav:version-url
+V 140
+/svn/IGFEB10/!svn/ver/2637/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/rendererentity.h
+END
+entity.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 134
+/svn/IGFEB10/!svn/ver/1631/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/entity.cpp
+END
+entitymanager.h
+K 25
+svn:wc:ra_dav:version-url
+V 139
+/svn/IGFEB10/!svn/ver/1631/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/entitymanager.h
+END
+renderentity.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 140
+/svn/IGFEB10/!svn/ver/1873/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/renderentity.cpp
+END

@@ -1,0 +1,185 @@
+K 25
+svn:wc:ra_dav:version-url
+V 133
+/svn/IGFEB10/!svn/ver/2909/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound
+END
+billboard.h
+K 25
+svn:wc:ra_dav:version-url
+V 145
+/svn/IGFEB10/!svn/ver/2723/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/billboard.h
+END
+modelmanager.h
+K 25
+svn:wc:ra_dav:version-url
+V 148
+/svn/IGFEB10/!svn/ver/2288/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/modelmanager.h
+END
+model.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 143
+/svn/IGFEB10/!svn/ver/2636/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/model.cpp
+END
+texture.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 145
+/svn/IGFEB10/!svn/ver/2390/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/texture.cpp
+END
+texturemanager.h
+K 25
+svn:wc:ra_dav:version-url
+V 150
+/svn/IGFEB10/!svn/ver/2807/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/texturemanager.h
+END
+fontmanager.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 149
+/svn/IGFEB10/!svn/ver/2898/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/fontmanager.cpp
+END
+spritemanager.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 151
+/svn/IGFEB10/!svn/ver/2404/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/spritemanager.cpp
+END
+lightmanager.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 150
+/svn/IGFEB10/!svn/ver/2642/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/lightmanager.cpp
+END
+model.h
+K 25
+svn:wc:ra_dav:version-url
+V 141
+/svn/IGFEB10/!svn/ver/2539/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/model.h
+END
+texture.h
+K 25
+svn:wc:ra_dav:version-url
+V 143
+/svn/IGFEB10/!svn/ver/2390/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/texture.h
+END
+fontmanager.h
+K 25
+svn:wc:ra_dav:version-url
+V 147
+/svn/IGFEB10/!svn/ver/2898/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/fontmanager.h
+END
+font.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 142
+/svn/IGFEB10/!svn/ver/2345/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/font.cpp
+END
+renderer.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 146
+/svn/IGFEB10/!svn/ver/2909/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/renderer.cpp
+END
+sprite.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 144
+/svn/IGFEB10/!svn/ver/2500/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/sprite.cpp
+END
+spritemanager.h
+K 25
+svn:wc:ra_dav:version-url
+V 149
+/svn/IGFEB10/!svn/ver/2404/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/spritemanager.h
+END
+lightmanager.h
+K 25
+svn:wc:ra_dav:version-url
+V 148
+/svn/IGFEB10/!svn/ver/2623/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/lightmanager.h
+END
+light.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 143
+/svn/IGFEB10/!svn/ver/2229/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/light.cpp
+END
+font.h
+K 25
+svn:wc:ra_dav:version-url
+V 140
+/svn/IGFEB10/!svn/ver/2345/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/font.h
+END
+renderer.h
+K 25
+svn:wc:ra_dav:version-url
+V 144
+/svn/IGFEB10/!svn/ver/2723/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/renderer.h
+END
+sprite.h
+K 25
+svn:wc:ra_dav:version-url
+V 142
+/svn/IGFEB10/!svn/ver/2404/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/sprite.h
+END
+light.h
+K 25
+svn:wc:ra_dav:version-url
+V 141
+/svn/IGFEB10/!svn/ver/2229/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/light.h
+END
+soundmanager.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 150
+/svn/IGFEB10/!svn/ver/2666/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/soundmanager.cpp
+END
+billboardmanager.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 154
+/svn/IGFEB10/!svn/ver/2723/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/billboardmanager.cpp
+END
+sound.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 143
+/svn/IGFEB10/!svn/ver/2666/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/sound.cpp
+END
+soundmanager.h
+K 25
+svn:wc:ra_dav:version-url
+V 148
+/svn/IGFEB10/!svn/ver/2666/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/soundmanager.h
+END
+billboardmanager.h
+K 25
+svn:wc:ra_dav:version-url
+V 152
+/svn/IGFEB10/!svn/ver/2723/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/billboardmanager.h
+END
+billboard.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 147
+/svn/IGFEB10/!svn/ver/2835/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/billboard.cpp
+END
+modelmanager.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 150
+/svn/IGFEB10/!svn/ver/2288/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/modelmanager.cpp
+END
+texturemanager.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 152
+/svn/IGFEB10/!svn/ver/2390/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/texturemanager.cpp
+END
+sound.h
+K 25
+svn:wc:ra_dav:version-url
+V 141
+/svn/IGFEB10/!svn/ver/2666/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Engine/graphics%20and%20sound/sound.h
+END

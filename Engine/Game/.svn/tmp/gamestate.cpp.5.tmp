@@ -1,0 +1,1363 @@
+// 
+//  Diploma of Interactive Gaming 
+//  Game Development Faculty 
+//  Media Design School 
+//  Auckland
+//  New Zealand
+// 
+//  (c) 2005-2010 Media Design School
+//
+//  File Name   :   gamestate.cpp
+//  Description :   gamestate.cppfor implementation of gamestate.h
+//  Author      :   Rigardt de Vries
+//  Mail        :   rigardt.vries@mediadesign.school.nz
+//
+
+// Library Includes
+#include <d3dx9.h>
+#include <sstream>
+
+// Local Includes
+#include "../totalcubedomination.h"
+#include "../viewport/viewport.h"
+#include "../viewport/camera.h"
+#include "../graphics and sound/renderer.h"
+#include "../Graphics and sound/texturemanager.h"
+#include "../Graphics and sound/modelmanager.h"
+#include "../Graphics and sound/fontmanager.h"
+#include "../Graphics and sound/billboardmanager.h"
+#include "../Graphics and sound/soundmanager.h"
+#include "../Graphics and sound/spritemanager.h"
+#include "../Graphics and sound/lightmanager.h"
+#include "../../entity structures/player objects/playermanager.h"
+#include "../../entity structures/particle/emittermanager.h"
+#include "../../entity structures/player objects/humanplayer.h"
+#include "../../entity structures/player objects/ai/aiplayer.h"
+#include "../../entity structures/player objects/playermanager.h"
+#include "../../entity structures/player objects/tank.h"
+#include "../../entity structures/player objects/bullet.h"
+#include "../../entity structures/player objects/power up/powerupmanager.h"
+#include "../../entity structures/particle/emittermanager.h"
+#include "../../entity structures/particle/flagparticleemitter.h"
+#include "../../entity structures/particle/flameparticleemitter.h"
+#include "../../entity structures/particle/spiralparticleemitter.h"
+#include "../../entity structures/particle/explodeparticleemitter.h"
+#include "../../entity structures/particle/picparticleemitter.h"
+#include "../../entity structures/particle/bulletwallparticles.h"
+#include "../../entity structures/player objects/power up/powerup.h"
+#include "../../entity structures/entitymanager.h"
+#include "../../defines.h"
+#include "collisionmanager.h"
+#include "normalmode.h"
+#include "hardcoremode.h"
+#include "rules.h"
+#include "../../entity structures/terrain objects/cube.h"
+#include "../../Entity structures/Terrain Objects/flag.h"
+#include "../../Entity structures/Terrain Objects/ammo.h"
+#include "../../Entity structures/Terrain Objects/faultymagplate.h"
+#include "../../Entity structures/Terrain Objects/breakablebarrier.h"
+#include "../../Entity structures/Terrain Objects/flamegrate.h"
+#include "../../Entity structures/Terrain Objects/wall.h"
+#include "../../Entity structures/Terrain Objects/flagplate.h"
+#include "../../Entity structures/Terrain Objects/tower/tower.h"
+#include "../../Entity structures/player objects/ai/pathfinder.h"
+#include "../../Entity structures/game menu's/pausescreen.h"
+#include "../Input/input.h"
+#include "../input/inputhandler.h"
+#include "menustate.h"
+#include "statistics.h"
+
+#ifdef _DEBUG
+#include "../debugwindow.h"
+#include "../logging/logmanager.h"
+#endif // _DEBUG
+
+// This Includes
+#include "gamestate.h"
+
+// Static Variables
+
+// Static Function Prototypes
+
+// Implementation
+
+CGameState::CGameState()
+: m_pCube(0)
+, m_pRules(0)
+#ifdef _DEBUG
+, m_pDebugWindow(0)
+#endif //_DEBUG
+, m_fNewGameTimer(0.0f)
+, m_fPauseTimer(1.2f)
+, m_fNewRoundTimer(0.0f)
+, m_bPause(false)
+, m_bPauseDown(false)
+, m_bNewRound(false)
+, m_uiMusic(BAD_ID)
+{
+    memset(m_apTanks, 0, sizeof(m_apTanks));
+    memset(m_apPlayer, 0, sizeof(m_apPlayer));
+	memset(m_apStats, 0, sizeof(m_apStats));
+}
+
+CGameState::~CGameState()
+{
+    for (int32 i = 0; i < 8; ++i)
+    {
+        if (m_apTanks[i])
+        {
+            delete m_apTanks[i];
+            m_apTanks[i] = 0;
+        }
+
+        if (m_apPlayer[i])
+        {
+            delete m_apPlayer[i];
+            m_apPlayer[i] = 0;
+        }
+    }
+
+	for (int32 i = 0; i < 4; ++i)
+	{
+		if(m_apStats[i])
+		{
+			delete m_apStats[i];
+			m_apStats[i] = 0;
+		}
+	}
+
+	delete m_pPauseScreen;
+	m_pPauseScreen = 0;
+
+    delete m_pRules;
+    m_pRules = 0;
+
+    delete m_pCube;
+    m_pCube = 0;
+
+    CBullet::SetModelAndTextureID(BAD_ID, BAD_ID, BAD_ID, BAD_ID);
+    CEMPBomb::SetAssetIDs(BAD_ID, BAD_ID, BAD_ID);
+    CEMPBomb::SetExpldAssestIDs(BAD_ID, BAD_ID, BAD_ID);
+    CMine::SetAssestToBadID();
+	CPICParticleEmitter::ResetAssets();
+
+#ifdef _DEBUG
+	delete m_pDebugWindow;
+	m_pDebugWindow = 0;
+#endif //_DEBUG
+}
+
+/*
+* 
+* 
+* @param float32 _fDeltaTick
+* @return void 
+*/
+void
+CGameState::Process(float32 _fDeltaTick)
+{
+	// A cheap way to "pause" the game. - Cameron
+	// need to add check for player 1's controller
+	if(true == CInputHandler::GetInstance().IsControlTriggered(CONTROL_PAUSE, 0))
+	{
+		if (false == m_bPauseDown)
+		{
+			m_bPause = !m_bPause;
+			CSoundManager::GetInstance().SetChannelPause(true, SOUNDCHANNEL_ALL);
+			m_bPauseDown = true;
+		}
+	}
+	else
+	{
+		m_bPauseDown = false;
+		CSoundManager::GetInstance().SetChannelPause(false, SOUNDCHANNEL_ALL);
+	}
+	if(m_bPause ||(m_fPauseTimer > 0.0f))
+	{
+		if(!m_bPause)
+		{	
+			m_fPauseTimer -= _fDeltaTick;
+			if(m_fPauseTimer <= 0.0f)
+			{
+				m_fPauseTimer = 0.0f;
+				CSoundManager::GetInstance().SetChannelPause(false, SOUNDCHANNEL_ALL);
+			}
+		}
+		_fDeltaTick = 0.0f;
+	}
+
+#ifdef _DEBUG	// Check id debug key has been pressed.
+	if(true == CInputHandler::GetInstance().IsControlTriggered(CONTROL_ENABLE_DEBUG_WINDOW))
+	{
+		if(false == m_pDebugWindow->IsWindowOpen())
+		{
+			m_pDebugWindow->OpenDebugWindow();
+		}
+	}
+
+    m_pOwner->GetRenderer()->Process(_fDeltaTick);
+    CViewport* pViewport = CTotalCubeDomination::GetInstance().GetRenderer()->GetViewport(0);
+    if (CInputHandler::GetInstance().IsControlTriggered(CONTROL_ENABLE_DEBUG_CAMERA) == true)
+    {
+        if (pViewport->GetActiveCamera() == pViewport->GetCamera(0) )
+        {
+            pViewport->SetActiveCamera(1);
+        }
+        else
+        {
+            pViewport->SetActiveCamera(0);
+        }
+    }
+#endif // _DEBUG
+
+	CPathfinder::GetInstance().Process(_fDeltaTick);
+	CEmitterManager::GetInstance().Process(_fDeltaTick);
+	CEntityManager::GetInstance().Process(_fDeltaTick);	
+
+    if (m_fNewGameTimer > 1.0f)
+    {
+        m_fNewGameTimer -= _fDeltaTick;
+    }
+	 
+    if (m_fNewGameTimer == 0.0f)
+    {
+
+        m_fNewRoundTimer += _fDeltaTick;
+		if (m_fNewRoundTimer >= 1.f)
+		{
+			m_bNewRound = false;
+		}
+		////////////////////////
+        //// TANK COLLISION ////
+        ////////////////////////
+        TankCollisions(_fDeltaTick);
+
+
+        //////////////////////////////////
+        //// TOWER BULLETS COLLISION  ////
+        //////////////////////////////////
+		FlagTowerShutdown();
+		TowerBulletCollisions();
+
+#ifdef _DEBUG
+	    for( int32 i = 0; i < 8; ++i)
+	    {
+		    EControl eControl = static_cast<EControl>(i + 36);
+		    if(CInputHandler::GetInstance().IsControlHeld(eControl) == true &&
+			    CInputHandler::GetInstance().IsControlHeld(CONTROL_CHEATPIC) == true)
+		    {
+			    if(m_apTanks[i])
+			    {
+				    m_apTanks[i]->SetPIC(PIC_BULLET_SPEED, (m_apTanks[i]->GetPIC(PIC_BULLET_SPEED) + 1));
+				    m_apTanks[i]->SetPIC(PIC_MOVE_SPEED, (m_apTanks[i]->GetPIC(PIC_MOVE_SPEED) + 1));
+				    m_apTanks[i]->SetPIC(PIC_BULLET_DAMAGE, (m_apTanks[i]->GetPIC(PIC_BULLET_DAMAGE) + 1));
+				    m_apTanks[i]->SetPIC(PIC_EXPLODE_RADIUS, (m_apTanks[i]->GetPIC(PIC_EXPLODE_RADIUS) + 1));
+				    m_apTanks[i]->SetPIC(PIC_SHIELD, (m_apTanks[i]->GetPIC(PIC_SHIELD) + 1));
+
+			    }
+		    }
+			if(CInputHandler::GetInstance().IsControlHeld(eControl) == true &&
+			    CInputHandler::GetInstance().IsControlHeld(CONTROL_CHEATINVIS) == true)
+			{
+				if(m_apTanks[i])
+				{
+					// Check for cheat modes keys.
+					m_apTanks[i]->SetPowerUp(POWERUP_INVISIBILITY);
+				}
+			}
+	    }
+#endif // _DEBUG
+
+        ////////////////////////
+        //// FLAG COLLISION ////
+        ////////////////////////
+        FlagCollisions();
+
+		//////////////////////////
+		//// Mine Collisions /////
+		//////////////////////////
+		TankMineCollisions();
+
+		////////////////////////
+		//// EMP Collisions ////
+		////////////////////////
+		TankEMPCollisions();
+		
+		////////////////////////////
+		//// POWERUP COLLISIONS ////
+		////////////////////////////
+		TankPowerupCollision();
+
+		m_pPauseScreen->Process(_fDeltaTick);
+
+        CPlayerManager::GetPlayerManagerInstance().Process(_fDeltaTick);
+    }
+    if (m_fNewGameTimer <= 1.0f && m_fNewGameTimer > 0.0f)
+    {
+        m_fNewGameTimer = 0.0f;
+
+		for(uint32 ui = 0; ui < CProgramState::GetNumPlayers(); ++ui)
+		{
+			m_apStats[ui] = new CStatistics;
+			m_apStats[ui]->Initialise(ui);
+		}
+
+    }
+	if(m_bPause == true)
+	{
+		if(CInputHandler::GetInstance().IsControlTriggered(CONTROL_EXIT, 0))
+		{
+			//CTotalCubeDomination::GetInstance().SetProgramState(new CMenuState);
+			CTotalCubeDomination::GetInstance().ChangeToMenuState();
+		}
+	}
+	if(m_apStats[0])
+	{
+		int32 iRoundTimer = 15;
+
+		if(m_apStats[0]->GetExitTime() > iRoundTimer)
+		{
+			//CTotalCubeDomination::GetInstance().SetProgramState(new CMenuState);
+			CTotalCubeDomination::GetInstance().ChangeToMenuState();
+		}
+
+		if(CInputHandler::GetInstance().IsControlTriggered(CONTROL_SELECT, 0))
+		{
+			//CTotalCubeDomination::GetInstance().StartGame();
+			CTotalCubeDomination::GetInstance().ChangeToGameState();
+		}
+	}
+}
+
+/*
+* Initialise
+* @authors Rigardt de Vries / Carsten / Daniel Jay
+* @return void 
+*/
+bool
+CGameState::Initialise()
+{
+    CFontManager::GetInstance().Clear();
+	CTextureManager::GetInstance().Clear();
+	CModelManager::GetInstance().Clear();
+	CLightManager::GetInstance().Clear();
+    CBillboardManager::GetInstance().ClearManager();
+    CSoundManager::GetInstance().Clear();
+    CSpriteManager::GetInstance().Clear();
+    CPlayerManager::GetPlayerManagerInstance().DestroyPlayers();
+    CEmitterManager::GetInstance().Clear();
+
+	CPlayerManager::GetPlayerManagerInstance().Initialise();
+	if(CProgramState::GetDifficulty() == 0)
+	{
+		m_pRules = new CNormalMode;
+	}
+	else
+	{
+		m_pRules = new CHardcoreMode;
+	}
+	
+	D3DXVECTOR2 vec2Position = D3DXVECTOR2(static_cast<float32>(CTotalCubeDomination::GetInstance().GetRenderer()
+								->GetViewport(0)->GetWidth()),
+								static_cast<float32>(CTotalCubeDomination::GetInstance().GetRenderer()
+								->GetViewport(0)->GetHeight()));
+	uint32 uiTexturepauseMenuID = CTextureManager::GetInstance().CreateTexture("textures/Menu Textures/pausescreen.png");
+	uint32 uiBillBoardPauseMenuID = CBillboardManager::GetInstance().CreateBillboard(uiTexturepauseMenuID,
+									(static_cast<float32>(CTotalCubeDomination::GetInstance().GetRenderer()
+									->GetViewport(0)->GetWidth() * 0.9f)),
+									(static_cast<float32>(CTotalCubeDomination::GetInstance().GetRenderer()
+									->GetViewport(0)->GetHeight() * 0.9f)), vec2Position);
+	
+	m_pPauseScreen = new CPauseScreen;
+	m_pPauseScreen->Initialise(uiTexturepauseMenuID);
+
+	uint32 uiNumViewports = CProgramState::GetNumPlayers();
+
+    CRenderer* pRenderer = CTotalCubeDomination::GetInstance().GetRenderer();
+    pRenderer->SetNumViewports(uiNumViewports);
+
+	// Player one's camera.
+	if(uiNumViewports == 4)
+	{
+		pRenderer->GetViewport(0)->CreateCamera(D3DXToRadian(60), 0.1f, 1000);
+	}
+	else
+	{
+		pRenderer->GetViewport(0)->CreateCamera(D3DXToRadian(45), 0.1f, 1000);
+	}
+    
+#ifdef _DEBUG
+	// Create debug camera.
+	pRenderer->GetViewport(0)->CreateCamera(D3DXToRadian(45), 0.1f, 1000, true);
+#endif // _DEBUG
+
+    switch (uiNumViewports)
+    {
+    case 4:
+        {
+	        pRenderer->GetViewport(3)->CreateCamera(D3DXToRadian(60), 0.1f, 1000);
+        }
+    case 3:
+        {
+	        pRenderer->GetViewport(2)->CreateCamera(D3DXToRadian(60), 0.1f, 1000);
+        }
+    case 2:
+        {
+			if(uiNumViewports > 2)
+			{
+				pRenderer->GetViewport(1)->CreateCamera(D3DXToRadian(60), 0.1f, 1000);
+			}
+			else
+			{
+				pRenderer->GetViewport(1)->CreateCamera(D3DXToRadian(45), 0.1f, 1000);
+			}
+        }
+        break;
+    }
+	
+	uint32 uiTankModel = CModelManager::GetInstance().CreateModel("models/tnk_base.x");
+    uint32 uiTurretModel = CModelManager::GetInstance().CreateModel("models/tnk_turret.x");
+	CBullet::LoadAssets();
+	
+    CEMPBomb::LoadAssets();
+
+	// NOTE: change this to the actual model and texture when they have been made.
+	uint32 uiOverShieldModel = CModelManager::GetInstance().CreateModel("models/eff_emp.x");
+
+	uint32 uiOverShieldTexture = CTextureManager::GetInstance().CreateTexture("textures/tank_overshield.png");
+
+   // CBullet::SetModelAndTextureID(uiBulletTexture, uiBulletModel);
+	//CEMPBomb::SetAssetIDs(uiEMPModel, uiEMPTexture);
+	//CEMPBomb::SetExpldAssestIDs(uiEMPExpldModel, uiEMPExpldTexture);
+
+	uint32 uiExplosionParticleID = CTextureManager::GetInstance().CreateTexture("textures/explode.png");
+
+    CExplodeParticleEmitter::SetTextureID(uiExplosionParticleID);
+	CFlameParticleEmitter::SetTextureID(uiExplosionParticleID);
+    CSpiralParticleEmitter::SetTextureID(CTextureManager::GetInstance().CreateTexture("textures/skull.png"));
+	CBulletWallParticles::SetTextureID(uiExplosionParticleID);
+	//CFlagParticleEmitter::SetTextureID(CTextureManager::GetInstance().CreateTexture("textures/flag_tex.png"));
+	CFlagParticleEmitter::SetTextureID(CTextureManager::GetInstance().CreateTexture("textures/obj_flagparticle.png"));
+	CPICParticleEmitter::LoadAssets();
+
+	CMine::LoadAssets();
+
+	//Creating Cubes
+	uint32 uiCubeModel = CModelManager::GetInstance().CreateModel("models/obj_cube15.x");
+	uint32 uiCubeTexture = CTextureManager::GetInstance().CreateTexture("textures/obj_cube_baseTile.png");
+	m_pCube = new CCube;
+	m_pCube->Initialise(uiCubeTexture, uiCubeModel);
+	if (!m_pCube->LoadMap(CMenuState::GetSelectedMap().c_str())) return (false);
+
+	//initialise pathfinder
+	CPathfinder::GetInstance().Initialise(m_pCube);
+
+	// Initialise the players and assign tanks.
+	// Rewritten by Rebeccah.
+	CHumanPlayer* pHumanPlayer = 0;
+	CAIPlayer* pAIPlayer = 0;
+	int32 iGreenTankCount = 0;
+	int32 iPurpleTankCount = 4;
+
+	// Tank textures.
+	uint32 uiGreenTankTexture = CTextureManager::GetInstance().CreateTexture("textures/tank_green.png");
+	uint32 uiPurpleTankTexture = CTextureManager::GetInstance().CreateTexture("textures/tank_purple.png");
+	uint32 uiShieldTexture = CTextureManager::GetInstance().CreateTexture("textures/tank_shield.png");
+
+	CAIPlayer::SetCube(m_pCube);
+
+	for(int32 iTank = 0; iTank < 8; ++iTank)
+	{
+		m_apTanks[iTank] = new CTank();
+	}
+
+	// Local variables to keep track of player and controller count when creating players.
+	uint32 uiControllerID = 0;
+	uint32 uiHumanPlayerCount = 0;
+
+	// Iterate through all of the players.
+	for(uint32 uiPlayer = 0; uiPlayer < 8; ++uiPlayer)
+	{
+		// Create human players.
+		if(uiHumanPlayerCount < CProgramState::GetNumPlayers())
+		{
+			// Increment the controller ID until a valid controller is found.
+			/*while(false == CInputHandler::GetInstance().IsControllerConnected(uiControllerID))
+			{
+				++uiControllerID;
+			}*/
+
+			// If the controller count has reached it's max, set the current player count to the max,
+			//	so that it skips making any more players, when there are no controllers for them.
+			if(CInputHandler::GetInstance().GetMaxNumControllers() <= uiControllerID)
+			{
+				uiHumanPlayerCount = CProgramState::GetNumPlayers();
+			}
+			// Else create the player.
+			else
+			{
+				pHumanPlayer = new CHumanPlayer();
+
+				if(true == CProgramState::IsPlayerGreen(uiHumanPlayerCount))
+				{
+					m_apTanks[iGreenTankCount]->Initialise(CPlayerManager::GetPlayerManagerInstance().GetRandomRespawnLocation(m_apTanks[iGreenTankCount], TEAM_GREEN).vec3Point, 
+												uiGreenTankTexture,	uiTankModel, TEAM_GREEN, 
+												CPlayerManager::GetPlayerManagerInstance().GetRandomRespawnLocation(m_apTanks[iGreenTankCount], TEAM_GREEN).eFacePosition, 
+												uiOverShieldModel, uiOverShieldTexture, uiShieldTexture);
+
+					pHumanPlayer->Initialise(m_apTanks[iGreenTankCount], uiControllerID, uiHumanPlayerCount, TEAM_GREEN);
+					m_apTanks[iGreenTankCount]->SetViewport(uiHumanPlayerCount);
+					m_apTanks[iGreenTankCount++]->SetTurretModelID(uiTurretModel);
+				}
+				else
+				{
+					m_apTanks[iPurpleTankCount]->Initialise(CPlayerManager::GetPlayerManagerInstance().GetRandomRespawnLocation(m_apTanks[iPurpleTankCount], TEAM_PURPLE).vec3Point, 
+												uiPurpleTankTexture, uiTankModel, TEAM_PURPLE, 
+												CPlayerManager::GetPlayerManagerInstance().GetRandomRespawnLocation(m_apTanks[iPurpleTankCount], TEAM_PURPLE).eFacePosition, 
+												uiOverShieldModel, uiOverShieldTexture, uiShieldTexture);
+					pHumanPlayer->Initialise(m_apTanks[iPurpleTankCount], uiControllerID, uiHumanPlayerCount, TEAM_PURPLE);
+					m_apTanks[iPurpleTankCount]->SetViewport(uiHumanPlayerCount);
+					m_apTanks[iPurpleTankCount++]->SetTurretModelID(uiTurretModel);
+				}
+				// Set the player's camera.
+				++uiControllerID;
+				pHumanPlayer->SetCamera(0, uiHumanPlayerCount++);
+				CPlayerManager::GetPlayerManagerInstance().AddPlayer(pHumanPlayer);
+			}
+		}
+		// Create AI players to fill the rest of the positions.
+		else
+		{
+			pAIPlayer = new CAIPlayer();
+
+			// Fill up green tanks...
+			if(4 > iGreenTankCount)
+			{
+				m_apTanks[iGreenTankCount]->Initialise(CPlayerManager::GetPlayerManagerInstance().GetRandomRespawnLocation(m_apTanks[iGreenTankCount], TEAM_GREEN).vec3Point, 
+											uiGreenTankTexture, uiTankModel, TEAM_GREEN, 
+											CPlayerManager::GetPlayerManagerInstance().GetRandomRespawnLocation(m_apTanks[iGreenTankCount], TEAM_GREEN).eFacePosition, 
+											uiOverShieldModel, uiOverShieldTexture, uiShieldTexture);
+				pAIPlayer->Initialise(m_apTanks[iGreenTankCount], uiPlayer, TEAM_GREEN);
+				m_apTanks[iGreenTankCount++]->SetTurretModelID(uiTurretModel);
+			}
+			// Then purple tanks...
+			else
+			{
+				m_apTanks[iPurpleTankCount]->Initialise(CPlayerManager::GetPlayerManagerInstance().GetRandomRespawnLocation(m_apTanks[iPurpleTankCount], TEAM_PURPLE).vec3Point, 
+											uiPurpleTankTexture, uiTankModel, TEAM_PURPLE, 
+											CPlayerManager::GetPlayerManagerInstance().GetRandomRespawnLocation(m_apTanks[iPurpleTankCount], TEAM_PURPLE).eFacePosition, 
+											uiOverShieldModel, uiOverShieldTexture, uiShieldTexture);
+				pAIPlayer->Initialise(m_apTanks[iPurpleTankCount], uiPlayer, TEAM_PURPLE);
+				m_apTanks[iPurpleTankCount++]->SetTurretModelID(uiTurretModel);
+			}
+			CPlayerManager::GetPlayerManagerInstance().AddPlayer(pAIPlayer);
+		}
+	}
+
+#ifdef _DEBUG
+	m_pDebugWindow = new CDebugWindow();
+#endif //_DEBUG
+
+	m_uiMusic = CSoundManager::GetInstance().CreateSound("sounds/music/soundtrack_one.mp3", 1.0f, true);
+	CSoundManager::GetInstance().PlaySound(m_uiMusic);
+
+	return (true); 
+}
+
+/*
+* 
+* 
+* @param const char* _kpcFileName
+* @return bool
+*/
+bool
+CGameState::LoadLevel(const char* _kpcFileName)
+{
+	return (true);
+}
+
+/*
+* NewRound
+* @author Rigardt de Vries
+* @return void 
+*/
+void
+CGameState::NewRound()
+{
+	//Set an initial pause time, allowing players time to get ready, and minimizing the starting
+	// delta tick. - Cameron
+	m_fNewRoundTimer = 0.0f;
+	m_bNewRound = true;
+
+	// Move flags to flag plates.
+    for (int32 iTanks = 0; iTanks < 8; ++iTanks)
+    {
+		if (!m_apTanks[iTanks]->IsTransitioning())
+		{
+			m_apTanks[iTanks]->Die();
+			m_apTanks[iTanks]->Reset();
+		}
+    }
+	//CPlayerManager::GetPlayerManagerInstance().SetRespawnTimer(3.0f);
+	for(uint32 uiPlayer = 0; uiPlayer < 8; ++uiPlayer)
+	{
+		CPlayerManager::GetPlayerManagerInstance().GetPlayer(uiPlayer)->SetRespawnTimer(3.0f);
+	}
+
+	m_pCube->GetFlag(TEAM_GREEN)->ResetPosition();
+    m_pCube->GetFlag(TEAM_GREEN)->SetFlagPickedUp(false);
+	m_pCube->GetFlag(TEAM_PURPLE)->ResetPosition();
+    m_pCube->GetFlag(TEAM_PURPLE)->SetFlagPickedUp(false);
+}
+
+/*
+* NewGame
+* @author Rigardt de Vries
+* @return void
+*/
+void 
+CGameState::NewGame()
+{
+    NewRound();
+    for (int32 iTanks = 0; iTanks < 8; ++iTanks)
+    {
+        m_apTanks[iTanks]->SetPIC(PIC_BULLET_DAMAGE, 0);
+        m_apTanks[iTanks]->SetPIC(PIC_BULLET_SPEED, 0);
+        m_apTanks[iTanks]->SetPIC(PIC_EXPLODE_RADIUS, 0);
+        m_apTanks[iTanks]->SetPIC(PIC_MOVE_SPEED, 0);
+        m_apTanks[iTanks]->SetPIC(PIC_SHIELD, 0);
+        m_apTanks[iTanks]->SetCurrentShield(m_apTanks[iTanks]->GetMaxShield() );
+    }
+
+    m_pRules->ResetScore();
+
+
+}
+
+/**
+* 
+* Returns a pointer to the CRules member variable.
+* 
+* @author Rebeccah Cox
+* @return CRules* m_pRules
+*/
+CRules*
+CGameState::GetRules()
+{
+	return (m_pRules);
+}
+
+/**
+* 
+* Returns a pointer to the CDebugWindow member variable.
+* 
+* @author Rebeccah Cox
+* @return CDebugWindow* m_pDebugWindow
+*/
+CDebugWindow*
+CGameState::GetDebugWindow()
+{
+	return (m_pDebugWindow);
+}
+
+/*
+* TankCollisions
+* @author Rigardt de Vries
+* @return void
+*/
+void
+CGameState::TankCollisions(float32 _fDeltaTick)
+{
+    for (int32 i = 0; i < 8; ++i)
+    {
+	    if (m_apTanks[i])
+		{
+			std::list<CBullet*>& listBullets = m_apTanks[i]->GetBulletList();
+	    
+            //// Tank to edge collision ////
+            for (uint32 ui = 0; ui < 6; ++ui)
+            {
+                ChangeFaceCollisions(i, ui);
+            }
+
+            //// tank to projectile collision ////
+            TankBulletCollisions(i, listBullets);
+
+            TankPlateCollisions(i,_fDeltaTick);
+		}
+    }
+}
+
+/*
+* ChangeFaceCollisions
+* @author Rigardt de Vries
+* @param _uiTankID          the id of a tank
+* @return void
+*/
+void
+CGameState::ChangeFaceCollisions(int32 _iTankID, uint32 _uiEdgeID)
+{
+    if (CCollisionManager::GetInstance().CheckBoxToBoxCollision(m_apTanks[_iTankID]->GetBoundingBox(), m_pCube->GetEdgeAABB(_uiEdgeID) ) == true )
+    {
+        // From front to top
+        if (m_apTanks[_iTankID]->GetFacePosition() == FACE_FRONT && 
+            static_cast<EFaceTransition>(_uiEdgeID) == TRANSITION_FRONT_TOP)
+        {
+            m_pRules->ChangeSide(m_apTanks[_iTankID], FACE_TOP);
+        }
+        // From top to front
+        else if (m_apTanks[_iTankID]->GetFacePosition() == FACE_TOP && 
+            static_cast<EFaceTransition>(_uiEdgeID) == TRANSITION_FRONT_TOP)
+        {
+            m_pRules->ChangeSide(m_apTanks[_iTankID], FACE_FRONT);
+        }
+        // From front to top
+        if (m_apTanks[_iTankID]->GetFacePosition() == FACE_FRONT && 
+            static_cast<EFaceTransition>(_uiEdgeID) == TRANSITION_FRONT_LEFT)
+        {
+            m_pRules->ChangeSide(m_apTanks[_iTankID], FACE_LEFT);
+        }
+        // From top to front
+        else if (m_apTanks[_iTankID]->GetFacePosition() == FACE_LEFT && 
+            static_cast<EFaceTransition>(_uiEdgeID) == TRANSITION_FRONT_LEFT)
+        {
+            m_pRules->ChangeSide(m_apTanks[_iTankID], FACE_FRONT);
+        }
+        // From front to top
+        if (m_apTanks[_iTankID]->GetFacePosition() == FACE_FRONT && 
+            static_cast<EFaceTransition>(_uiEdgeID) == TRANSITION_FRONT_RIGHT)
+        {
+            m_pRules->ChangeSide(m_apTanks[_iTankID], FACE_RIGHT);
+        }
+        // From top to front
+        else if (m_apTanks[_iTankID]->GetFacePosition() == FACE_RIGHT && 
+            static_cast<EFaceTransition>(_uiEdgeID) == TRANSITION_FRONT_RIGHT)
+        {
+            m_pRules->ChangeSide(m_apTanks[_iTankID], FACE_FRONT);
+        }
+        // From front to top
+        if (m_apTanks[_iTankID]->GetFacePosition() == FACE_BACK && 
+            static_cast<EFaceTransition>(_uiEdgeID) == TRANSITION_BACK_BOTTOM)
+        {
+            m_pRules->ChangeSide(m_apTanks[_iTankID], FACE_BOTTOM);
+        }
+        // From top to front
+        else if (m_apTanks[_iTankID]->GetFacePosition() == FACE_BOTTOM && 
+            static_cast<EFaceTransition>(_uiEdgeID) == TRANSITION_BACK_BOTTOM)
+        {
+            m_pRules->ChangeSide(m_apTanks[_iTankID], FACE_BACK);
+        }
+        // From front to top
+        if (m_apTanks[_iTankID]->GetFacePosition() == FACE_BACK && 
+            static_cast<EFaceTransition>(_uiEdgeID) == TRANSITION_BACK_LEFT)
+        {
+            m_pRules->ChangeSide(m_apTanks[_iTankID], FACE_LEFT);
+        }
+        // From top to front
+        else if (m_apTanks[_iTankID]->GetFacePosition() == FACE_LEFT && 
+            static_cast<EFaceTransition>(_uiEdgeID) == TRANSITION_BACK_LEFT)
+        {
+            m_pRules->ChangeSide(m_apTanks[_iTankID], FACE_BACK);
+        }
+        // From front to top
+        if (m_apTanks[_iTankID]->GetFacePosition() == FACE_BACK && 
+            static_cast<EFaceTransition>(_uiEdgeID) == TRANSITION_BACK_RIGHT)
+        {
+            m_pRules->ChangeSide(m_apTanks[_iTankID], FACE_RIGHT);
+        }
+        // From top to front
+        else if (m_apTanks[_iTankID]->GetFacePosition() == FACE_RIGHT && 
+            static_cast<EFaceTransition>(_uiEdgeID) == TRANSITION_BACK_RIGHT)
+        {
+            m_pRules->ChangeSide(m_apTanks[_iTankID], FACE_BACK);
+        }
+    }
+}
+
+/*
+* TankBulletCollision
+* @author Rigardt de Vries
+* @param _pListBullets          the list of bullet to collide
+* @return void
+*/
+void 
+CGameState::TankBulletCollisions(int32 _iTankID, std::list<CBullet*> _pListBullets)
+{
+    for (std::list<CBullet*>::iterator iter = _pListBullets.begin(); 
+			    iter != _pListBullets.end(); ++iter)
+    {
+		TankBulletChangeFaceCollisions(*iter);
+	    for(int32 j = 0; j < 8; ++j)
+	    {
+		    if(_iTankID != j && 0 != m_apTanks[j])
+		    {
+                if ((*iter)->GetFacePosition() != m_apTanks[j]->GetFacePosition()) continue;
+
+			    if (CCollisionManager::GetInstance().CheckBoxToBoxCollision((*iter)->GetBoundingBox(),
+					m_apTanks[j]->GetBoundingBox() ) == true && m_apTanks[j]->GetAlive())
+			    {
+				    //This will need to be changed to include emp's and mines and such otherwise it wont work unless its a bullet
+				    m_pRules->BulletTankCollision((*iter), m_apTanks[j]);
+				}
+		    }
+	    }
+
+		std::vector<CTower*>& vecTower = m_pCube->GetTowers();
+		for (uint32 ui = 0; ui < vecTower.size(); ++ui)
+		{
+            if ((*iter)->GetFacePosition() != vecTower[ui]->GetFacePosition()) continue;
+			if (CCollisionManager::GetInstance().CheckBoxToBoxCollision(vecTower[ui]->GetBoundingBox(), (*iter)->GetBoundingBox()) == true )
+			{
+				m_pRules->BulletTowerCollision((*iter), vecTower[ui]);
+			}
+		}
+
+		std::vector<CWall*>& vecWall = m_pCube->GetWalls();
+		for (uint32 ui = 0; ui < vecWall.size(); ++ui)
+		{
+            if ((*iter)->GetFacePosition() != vecWall[ui]->GetFacePosition()) continue;
+			if (CCollisionManager::GetInstance().CheckBoxToBoxCollision((*iter)->GetBoundingBox(), vecWall[ui]->GetBoundingBox()) == true )
+			{
+				m_pRules->BulletWallCollision((*iter));
+			}
+		}
+
+        std::vector<CBreakableBarrier*>& vecBarriers = m_pCube->GetBreakableBarrier();
+		for (uint32 ui = 0; ui < vecBarriers.size(); ++ui)
+		{
+            if (vecBarriers[ui])
+            {
+                if ((*iter)->GetFacePosition() != vecBarriers[ui]->GetFacePosition()) continue;
+			    if (CCollisionManager::GetInstance().CheckBoxToBoxCollision((*iter)->GetBoundingBox(), vecBarriers[ui]->GetBoundingBox()) == true )
+			    {
+				    m_pRules->BulletBarrierCollision((*iter), vecBarriers[ui]);
+                }
+			}
+		}
+    }
+
+	// EMP Collisions
+	CEMPBomb* pEMP = m_apTanks[_iTankID]->GetEMPBomb();
+
+	if (pEMP)
+	{
+		std::vector<CWall*>& vecWall = m_pCube->GetWalls();
+		for (uint32 ui = 0; ui < vecWall.size(); ++ui)
+		{
+            if (pEMP->GetFacePosition() != vecWall[ui]->GetFacePosition()) continue;
+			if (CCollisionManager::GetInstance().CheckBoxToBoxCollision(pEMP->GetBoundingBox(), vecWall[ui]->GetBoundingBox()) == true )
+			{
+				m_pRules->EMPWallCollision(pEMP);
+			}
+		}
+
+		std::vector<CTower*>& vecTower = m_pCube->GetTowers();
+		for (uint32 ui = 0; ui < vecTower.size(); ++ui)
+		{
+            if (pEMP->GetFacePosition() != vecTower[ui]->GetFacePosition()) continue;
+			if (CCollisionManager::GetInstance().CheckBoxToBoxCollision(vecTower[ui]->GetBoundingBox(), pEMP->GetBoundingBox()) == true )
+			{
+				m_pRules->EMPTowerCollision(pEMP, vecTower[ui]);
+			}
+		}
+
+		std::vector<CBreakableBarrier*>& vecBarriers = m_pCube->GetBreakableBarrier();
+		for (uint32 ui = 0; ui < vecBarriers.size(); ++ui)
+		{
+			if (vecBarriers[ui])
+			{
+                if (pEMP->GetFacePosition() != vecBarriers[ui]->GetFacePosition()) continue;
+				if (CCollisionManager::GetInstance().CheckBoxToBoxCollision(pEMP->GetBoundingBox(), vecBarriers[ui]->GetBoundingBox()) == true )
+				{
+					m_pRules->EMPWallCollision(pEMP);
+				}
+			}
+		}
+	}
+}
+
+/*
+* TankBulletChangeFaceCollisions
+* @author Rigardt de Vries
+* @param _pBullet		the bullet to change face
+* @return void
+*/
+void
+CGameState::TankBulletChangeFaceCollisions(CProjectile* _pProjectile)
+{
+	for (uint32 ui = 0 ; ui < 6; ++ui)
+	{
+		if (CCollisionManager::GetInstance().CheckBoxToBoxCollision(_pProjectile->GetBoundingBox(), m_pCube->GetEdgeAABB(ui) ) == true )
+		{
+			// From front to top
+			if (_pProjectile->GetFacePosition() == FACE_FRONT && 
+				static_cast<EFaceTransition>(ui) == TRANSITION_FRONT_TOP)
+			{
+				_pProjectile->StartTransition(FACE_TOP);
+			}
+			// From top to front
+			else if (_pProjectile->GetFacePosition() == FACE_TOP && 
+				static_cast<EFaceTransition>(ui) == TRANSITION_FRONT_TOP)
+			{
+				_pProjectile->StartTransition(FACE_FRONT);
+			}
+			// From front to top
+			if (_pProjectile->GetFacePosition() == FACE_FRONT && 
+				static_cast<EFaceTransition>(ui) == TRANSITION_FRONT_LEFT)
+			{
+				_pProjectile->StartTransition(FACE_LEFT);
+			}
+			// From top to front
+			else if (_pProjectile->GetFacePosition() == FACE_LEFT && 
+				static_cast<EFaceTransition>(ui) == TRANSITION_FRONT_LEFT)
+			{
+				_pProjectile->StartTransition(FACE_FRONT);
+			}
+			// From front to top
+			if (_pProjectile->GetFacePosition() == FACE_FRONT && 
+				static_cast<EFaceTransition>(ui) == TRANSITION_FRONT_RIGHT)
+			{
+				_pProjectile->StartTransition(FACE_RIGHT);
+			}
+			// From top to front
+			else if (_pProjectile->GetFacePosition() == FACE_RIGHT && 
+				static_cast<EFaceTransition>(ui) == TRANSITION_FRONT_RIGHT)
+			{
+				_pProjectile->StartTransition(FACE_FRONT);
+			}
+			// From front to top
+			if (_pProjectile->GetFacePosition() == FACE_BACK && 
+				static_cast<EFaceTransition>(ui) == TRANSITION_BACK_BOTTOM)
+			{
+				_pProjectile->StartTransition(FACE_BOTTOM);
+			}
+			// From top to front
+			else if (_pProjectile->GetFacePosition() == FACE_BOTTOM && 
+				static_cast<EFaceTransition>(ui) == TRANSITION_BACK_BOTTOM)
+			{
+				_pProjectile->StartTransition(FACE_BACK);
+			}
+			// From front to top
+			if (_pProjectile->GetFacePosition() == FACE_BACK && 
+				static_cast<EFaceTransition>(ui) == TRANSITION_BACK_LEFT)
+			{
+				_pProjectile->StartTransition(FACE_LEFT);
+			}
+			// From top to front
+			else if (_pProjectile->GetFacePosition() == FACE_LEFT && 
+				static_cast<EFaceTransition>(ui) == TRANSITION_BACK_LEFT)
+			{
+				_pProjectile->StartTransition(FACE_BACK);
+			}
+			// From front to top
+			if (_pProjectile->GetFacePosition() == FACE_BACK && 
+				static_cast<EFaceTransition>(ui) == TRANSITION_BACK_RIGHT)
+			{
+				_pProjectile->StartTransition(FACE_RIGHT);
+			}
+			// From top to front
+			else if (_pProjectile->GetFacePosition() == FACE_RIGHT && 
+				static_cast<EFaceTransition>(ui) == TRANSITION_BACK_RIGHT)
+			{
+				_pProjectile->StartTransition(FACE_BACK);
+			}
+		}
+    }
+}
+
+/*
+* TankPlateCollisions
+* @author Rigardt de Vries
+* @param _iTankID           the id of a tank.
+* @return void
+*/
+void
+CGameState::TankPlateCollisions(int32 _iTankID, float32 _fDeltaTick)
+{
+    std::vector<CFaultyMagPlate*>& vecFaultyMagPlate = m_pCube->GetFaultyMagPlates();
+	for (uint32 ui = 0; ui < vecFaultyMagPlate.size(); ++ui)
+	{
+        if (m_apTanks[_iTankID]->GetFacePosition() != vecFaultyMagPlate[ui]->GetFacePosition()) continue;
+		if (CCollisionManager::GetInstance().CheckBoxToBoxCollision(vecFaultyMagPlate[ui]->GetBoundingBox(), m_apTanks[_iTankID]->GetBoundingBox()) == true )
+		{
+            vecFaultyMagPlate[ui]->CauseEffect(*m_apTanks[_iTankID]);
+            break;
+		}
+        else
+        {
+            vecFaultyMagPlate[ui]->RemoveCauseEffect(*m_apTanks[_iTankID]);
+        }
+	}
+
+    std::vector<CFlameGrate*>& vecFlameGrate = m_pCube->GetFlameGrate();
+	for(uint32 ui = 0; ui < vecFlameGrate.size(); ++ui)
+	{
+        if (m_apTanks[_iTankID]->GetFacePosition() != vecFlameGrate[ui]->GetFacePosition()) continue;
+		if (CCollisionManager::GetInstance().CheckBoxToBoxCollision(m_apTanks[_iTankID]->GetBoundingBox(), vecFlameGrate[ui]->GetBoundingBox() ) == true )
+        {	
+			m_pRules->FlameGrateCollision(m_apTanks[_iTankID], vecFlameGrate[ui], _fDeltaTick);
+		}
+	}
+
+	std::vector<CAmmo*>& vecAmmoPlate = m_pCube->GetAmmoPlate();
+	for(uint32 ui = 0; ui < vecAmmoPlate.size(); ++ui)
+	{
+        if (m_apTanks[_iTankID]->GetFacePosition() != vecAmmoPlate[ui]->GetFacePosition()) continue;
+		if (CCollisionManager::GetInstance().CheckBoxToBoxCollision(m_apTanks[_iTankID]->GetBoundingBox(), vecAmmoPlate[ui]->GetBoundingBox() ) == true )
+        {	
+			m_pRules->AmmoPlateCollision(m_apTanks[_iTankID], vecAmmoPlate[ui]);
+		}
+	}
+}
+
+/*
+* TowerBulletCollisions
+* @author Rigardt de Vries
+* @return void
+*/
+void
+CGameState::TowerBulletCollisions()
+{
+    for (uint32 ui = 0; ui < m_pCube->GetTowers().size(); ++ui)
+	{
+		std::list<CBullet*> listBullets = m_pCube->GetTowers()[ui]->GetBulletList();
+		for (std::list<CBullet*>::iterator iter = listBullets.begin(); 
+					iter != listBullets.end(); ++iter)
+		{
+			for(int32 j = 0; j < 8; ++j)
+			{
+				if(m_apTanks[j])
+				{
+					if (CCollisionManager::GetInstance().CheckBoxToBoxCollision((*iter)->GetBoundingBox(), m_apTanks[j]->GetBoundingBox() ) == true &&
+						m_apTanks[j]->GetAlive())
+					{
+						//This will need to be changed to include emp's and mines and such otherwise it wont work unless its a bullet
+						m_pRules->BulletTankCollision((*iter), m_apTanks[j]);
+					}
+				}
+			}
+			std::vector<CWall*>& vecWall = m_pCube->GetWalls();
+			for (uint32 ui = 0; ui < vecWall.size(); ++ui)
+			{
+
+				if (CCollisionManager::GetInstance().CheckBoxToBoxCollision((*iter)->GetBoundingBox(), vecWall[ui]->GetBoundingBox()) == true )
+				{
+					m_pRules->BulletWallCollision((*iter));
+				}
+			}
+
+			TankBulletChangeFaceCollisions(*iter);
+
+			std::vector<CBreakableBarrier*>& vecBarriers = m_pCube->GetBreakableBarrier();
+			for(uint32 ui = 0; ui < vecBarriers.size(); ++ui)
+			{
+				if (vecBarriers[ui])
+				{
+					if ((*iter)->GetFacePosition() != vecBarriers[ui]->GetFacePosition()) continue;
+					if (CCollisionManager::GetInstance().CheckBoxToBoxCollision((*iter)->GetBoundingBox(), vecBarriers[ui]->GetBoundingBox()) == true )
+					{
+						m_pRules->BulletBarrierCollision((*iter), vecBarriers[ui]);
+					}
+				}
+			}
+		}
+	}
+}
+
+/*
+* FlagCollisions
+* @author Rigardt de Vries
+* @return void
+*/
+void
+CGameState::FlagCollisions()
+{
+    // Check the tank-to-flag/plate collisions.
+    for(int32 iTank = 0; iTank < 8; ++iTank)
+    {
+	    // If the tank is instanciated...
+	    if(0 != m_apTanks[iTank])
+	    {
+		    // TANK TO FLAG
+		    // If the tank and the TEAM_GREEN flag have collided...
+		    if(true == CCollisionManager::GetInstance().CheckBoxToBoxCollision(m_apTanks[iTank]->GetBoundingBox(),
+																	    m_pCube->GetFlag(TEAM_GREEN)->GetBoundingBox()))
+		    {
+			    if(TEAM_PURPLE == m_apTanks[iTank]->GetTeam())
+			    {
+				    // Call the GrabFlag function in Rules.
+				    m_pRules->GrabFlag(m_apTanks[iTank], m_pCube->GetFlag(TEAM_GREEN));
+			    }
+                if (TEAM_GREEN == m_apTanks[iTank]->GetTeam() &&
+					    m_pRules->GetFlagState(TEAM_GREEN) == FLAG_ON_FLOOR &&
+					    m_pCube->GetFlag(TEAM_GREEN)->GetFlagPickedUp() == false)
+                {
+                    m_pRules->GrabFlag(m_apTanks[iTank], m_pCube->GetFlag(TEAM_GREEN));
+                }
+			    else if(TEAM_GREEN == m_apTanks[iTank]->GetTeam() && 
+                        m_apTanks[iTank]->HasFlag() && 
+                        true == m_pCube->GetFlag(TEAM_GREEN)->IsFlagOnFlagPlate())
+			    {
+				    // Call the CaptureFlag function in Rules.
+				    // If it returns true, game has been won.
+				    if(true == m_pRules->CaptureFlag(m_apTanks[iTank], m_pCube->GetFlag(TEAM_GREEN)))
+				    {
+					    if (m_pRules->AwardPoint(m_apTanks[iTank]->GetTeam() ) )
+					    {
+                            m_fNewGameTimer = 4.0f;
+                           
+					    }
+					    else
+					    {
+						    // Restart the level.
+						    NewRound();
+					    }
+				    }
+			    }
+		    }
+		    // If the tank and the TEAM_PURPLE flag have collided...
+		    if(true == CCollisionManager::GetInstance().CheckBoxToBoxCollision(m_apTanks[iTank]->GetBoundingBox(),
+																	    m_pCube->GetFlag(TEAM_PURPLE)->GetBoundingBox()))
+		    {
+			    if(TEAM_GREEN == m_apTanks[iTank]->GetTeam())
+			    {
+				    // Call the GrabFlag function in Rules.
+				    m_pRules->GrabFlag(m_apTanks[iTank], m_pCube->GetFlag(TEAM_PURPLE));
+			    }
+			    if(TEAM_PURPLE == m_apTanks[iTank]->GetTeam() &&
+                         m_pRules->GetFlagState(TEAM_PURPLE) == FLAG_ON_FLOOR &&
+					    m_pCube->GetFlag(TEAM_PURPLE)->GetFlagPickedUp() == false)
+			    {
+				    // Call the GrabFlag function in Rules.
+				    m_pRules->GrabFlag(m_apTanks[iTank], m_pCube->GetFlag(TEAM_PURPLE));
+			    }
+			    else if(TEAM_PURPLE == m_apTanks[iTank]->GetTeam() && 
+                        m_apTanks[iTank]->HasFlag() &&
+                        true == m_pCube->GetFlag(TEAM_PURPLE)->IsFlagOnFlagPlate() )
+                {
+				    // Call the CaptureFlag function in Rules.
+				    // If it returns true, game has been won.
+				    if(true == m_pRules->CaptureFlag(m_apTanks[iTank], m_pCube->GetFlag(TEAM_PURPLE)))
+				    {
+					    if (m_pRules->AwardPoint(m_apTanks[iTank]->GetTeam() ) )
+					    {
+						    m_fNewGameTimer = 4.0f;
+                            
+					    }
+					    else
+					    {
+						    NewRound();
+					    }
+				    }
+			    }
+		    }
+        }
+    }
+}
+
+/**
+*
+* Checks Tank to mine collisions
+*
+* @author Michael McQuarrie
+* @return void
+*
+*/
+void
+CGameState::TankMineCollisions()
+{
+	bool bTankFound;
+	for(int32 iTank = 0; iTank < 8; ++iTank)
+    {
+		bTankFound = false;
+		for(int32 iTank2 = 0; iTank2 < 8; ++iTank2)
+		{
+			// If the tank is instanciated...
+			if(0 != m_apTanks[iTank] &&
+				0 != m_apTanks[iTank2] &&
+				0 != m_apTanks[iTank]->GetMine())
+			{
+				for (int32 i = 0; i < 8; ++i)
+				{
+					if (m_apTanks[iTank]->GetMine()->GetTank(i) == m_apTanks[iTank2])
+					{
+						bTankFound = true;
+                        break;
+					}
+				}
+				if (!bTankFound)
+				{
+					//Tank to mine collision
+					if(true == CCollisionManager::GetInstance().CheckPointToSphereCollision(m_apTanks[iTank2]->GetPosition(), m_apTanks[iTank]->GetMine()->GetPosition(), m_apTanks[iTank]->GetMine()->GetExplodeRadius()))
+					{						
+						if(m_apTanks[iTank]->GetMine()->GetExploding())
+						{
+							m_pRules->MineCollision(m_apTanks[iTank2], m_apTanks[iTank]->GetMine());
+						}
+					}
+					if(m_apTanks[iTank2]->GetMine()!= 0 &&
+						iTank2 != iTank)
+					{
+						//Mine to mine collision
+						if(true == CCollisionManager::GetInstance().CheckPointToSphereCollision(m_apTanks[iTank2]->GetMine()->GetPosition(), m_apTanks[iTank]->GetMine()->GetPosition(), m_apTanks[iTank]->GetMine()->GetExplodeRadius()))
+						{
+							if(!m_apTanks[iTank2]->GetMine()->GetExploding())
+							{
+								m_apTanks[iTank2]->GetMine()->SetArmed(true);
+								m_apTanks[iTank2]->GetMine()->SetExploding(true);
+							}
+						}
+					}
+					//Tank to mine run over
+					if(m_apTanks[iTank]->GetMine()!= 0 &&
+						false == m_apTanks[iTank]->GetMine()->GetExploding() &&
+						true == CCollisionManager::GetInstance().CheckBoxToBoxCollision(m_apTanks[iTank]->GetMine()->GetBoundingBox(), m_apTanks[iTank2]->GetBoundingBox()))
+					{
+						if(m_apTanks[iTank]->GetMine()->GetArmed())
+						{
+							m_apTanks[iTank]->GetMine()->SetExploding(true);
+						}
+					}
+				}
+			}
+		}
+	 }
+}
+
+/*
+* TankEMPCollisions
+* @author Rigardt de Vries
+* @return void
+*/
+void 
+CGameState::TankEMPCollisions()
+{
+	bool bTankFound;
+	for(int32 iTank = 0; iTank < 8; ++iTank)
+    {
+		CEMPBomb* pEMP = m_apTanks[iTank]->GetEMPBomb();
+
+		bTankFound = false;
+		for(int32 iTank2 = 0; iTank2 < 8; ++iTank2)
+		{
+			// If the tank is instantiated...
+			if(0 != m_apTanks[iTank] &&
+				0 != m_apTanks[iTank2] &&
+				0 != pEMP)
+			{
+				for (int32 i = 0; i < 8; ++i)
+				{
+                    if (pEMP->GetTank(i) == m_apTanks[iTank2])
+					{
+						bTankFound = true;
+					}
+				}
+				if (!bTankFound)
+				{
+					if(!(pEMP->GetCurrentDistance() < pEMP->GetMaxDistance() ) )
+					{
+						//Tank to EMP explode collision
+                        if(true == CCollisionManager::GetInstance().CheckPointToSphereCollision(m_apTanks[iTank2]->GetPosition(), pEMP->GetPosition(), pEMP->GetBlastRadius()))
+						{						
+							m_pRules->EMPCollision(m_apTanks[iTank2], pEMP);
+						}
+					}
+				}
+			}
+	
+			std::vector<CTower*>& vecTower = m_pCube->GetTowers();
+			for (uint32 ui = 0; ui < vecTower.size(); ++ui)
+			{
+				if(0 != m_apTanks[iTank] &&
+					0 != pEMP)
+				{
+					if(!(pEMP->GetCurrentDistance() < pEMP->GetMaxDistance() ) )
+					{
+						if (true == CCollisionManager::GetInstance().CheckPointToSphereCollision(vecTower[ui]->GetPosition(), pEMP->GetPosition(), pEMP->GetBlastRadius()))
+						{
+							m_pRules->EMPTowerCollision(pEMP, vecTower[ui]);
+						}
+					}
+				}
+			}
+		}
+	}
+}
+void
+CGameState::TankPowerupCollision()
+{
+	CPowerUp* pPower = CPowerUpManager::GetInstance().GetPowerup();
+
+	if (!pPower) return;
+
+	for(int32 iTank = 0; iTank < 8; ++iTank)
+    {
+		if(pPower->IsActive() == true)
+		{
+			if(true == CCollisionManager::GetInstance().CheckBoxToBoxCollision(m_apTanks[iTank]->GetBoundingBox(),
+																			pPower->GetBoundingBox()))
+			{
+				m_pRules->PowerupCollision(m_apTanks[iTank], pPower);
+				CPowerUpManager::GetInstance().GetPowerup()->SetActive(false);
+			}
+		}
+	}
+}
+
+bool CGameState::GetPause()
+{
+	return (m_bPause);
+}
+
+void CGameState::SetPause(bool _bPause)
+{
+	m_bPause = _bPause;
+	CSoundManager::GetInstance().SetChannelPause(_bPause, SOUNDCHANNEL_ALL);
+}
+
+/**
+* FlagTowerShutdown
+*
+* The tower gets shutdown when the player has a flag
+*
+* @author Michael McQuarrie
+* @return void 
+*/
+void
+CGameState::FlagTowerShutdown()
+{
+	//Check all tanks if one has a flag
+	for(int32 iTank = 0; iTank < 8; ++iTank)
+    {
+		for(int32 iTank2 = 0; iTank2 < 8; ++iTank2)
+		{
+			//Check both teams tank has a flag
+			if(m_apTanks[iTank]->GetFlag() != 0 &&
+				m_apTanks[iTank2]->GetFlag() != 0 &&
+				iTank != iTank2)
+			{
+				//If it does shut down all towers of that team
+				for (uint32 ui = 0; ui < m_pCube->GetTowers().size(); ++ui)
+				{
+					//Check if they are the same team
+					if(m_apTanks[iTank]->GetTeam() == m_pCube->GetTowers()[ui]->GetTeam())
+					{
+						//Using take EMP cause its the same as shutdown
+						m_pCube->GetTowers()[ui]->TakeEMP();
+					}
+				}
+			}
+		}
+	}
+}
+
+/*
+* Returns the new round bool
+* @author Rigardt de Vries
+* @return m_bNewRound
+*/
+bool
+CGameState::IsNewRound()
+{
+	return (m_bNewRound);
+}

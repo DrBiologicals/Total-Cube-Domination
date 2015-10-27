@@ -1,0 +1,53 @@
+// 
+//  Diploma of Interactive Gaming 
+//  Game Development Faculty 
+//  Media Design School 
+//  Auckland
+//  New Zealand
+// 
+//  (c) 2005-2010 Media Design School
+//
+//  File Name   :   aistateDisabled.h
+//  Description :   Declaration for CAIStateDisabled
+//  Author      :   Cameron MacIntohs
+//  Mail        :   cameron.macintosh@mediadesign.school.nz
+//
+
+#ifndef __IGFEB10_MODULE_AISTATEDISABLED_H__
+#define __IGFEB10_MODULE_AISTATEDISABLED_H__
+
+// Library Includes
+
+// Local Includes
+#include "aistate.h"
+#include "../../../defines.h"
+
+// Types
+
+// Prototypes
+
+class CAIStateDisabled : public CAIState
+{
+	// Member Functions
+public:
+	CAIStateDisabled();
+	virtual ~CAIStateDisabled();
+	virtual void Process(float32 _fDeltaTick);
+	bool Initialise(CAIPlayer* _pOwner, CAISubstateMove* _pMove, CAISubstateFlee* _pFlee,
+		CAISubstateAttack* _pAttack);
+
+protected:
+
+private:
+
+	// Member Variables
+public:
+
+protected:
+
+private:
+
+}; 
+
+#endif // __IGFEB10_MODULE_AISTATEDISABLED_H__
+

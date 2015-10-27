@@ -1,0 +1,179 @@
+K 25
+svn:wc:ra_dav:version-url
+V 143
+/svn/IGFEB10/!svn/ver/2912/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI
+END
+AIhelper.h
+K 25
+svn:wc:ra_dav:version-url
+V 154
+/svn/IGFEB10/!svn/ver/2728/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/AIhelper.h
+END
+aistate.h
+K 25
+svn:wc:ra_dav:version-url
+V 153
+/svn/IGFEB10/!svn/ver/2666/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistate.h
+END
+aistateRetrieveflag.h
+K 25
+svn:wc:ra_dav:version-url
+V 165
+/svn/IGFEB10/!svn/ver/2668/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistateRetrieveflag.h
+END
+aisubstateFlee.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 162
+/svn/IGFEB10/!svn/ver/2373/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aisubstateFlee.cpp
+END
+aisubstateMove.h
+K 25
+svn:wc:ra_dav:version-url
+V 160
+/svn/IGFEB10/!svn/ver/2874/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aisubstateMove.h
+END
+aisubstateAttack.h
+K 25
+svn:wc:ra_dav:version-url
+V 162
+/svn/IGFEB10/!svn/ver/2027/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aisubstateAttack.h
+END
+aisubstate.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 158
+/svn/IGFEB10/!svn/ver/2796/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aisubstate.cpp
+END
+aisubstateFlee.h
+K 25
+svn:wc:ra_dav:version-url
+V 160
+/svn/IGFEB10/!svn/ver/2027/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aisubstateFlee.h
+END
+aiplayer.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 156
+/svn/IGFEB10/!svn/ver/2843/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aiplayer.cpp
+END
+aistateProtectplayer.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 168
+/svn/IGFEB10/!svn/ver/2796/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistateProtectplayer.cpp
+END
+aistateCaptureflag.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 166
+/svn/IGFEB10/!svn/ver/2666/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistateCaptureflag.cpp
+END
+aisubstate.h
+K 25
+svn:wc:ra_dav:version-url
+V 156
+/svn/IGFEB10/!svn/ver/2666/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aisubstate.h
+END
+aiplayer.h
+K 25
+svn:wc:ra_dav:version-url
+V 154
+/svn/IGFEB10/!svn/ver/2796/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aiplayer.h
+END
+aistateProtectplayer.h
+K 25
+svn:wc:ra_dav:version-url
+V 166
+/svn/IGFEB10/!svn/ver/2563/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistateProtectplayer.h
+END
+aistateCaptureflag.h
+K 25
+svn:wc:ra_dav:version-url
+V 164
+/svn/IGFEB10/!svn/ver/2190/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistateCaptureflag.h
+END
+aistateDisabled.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 163
+/svn/IGFEB10/!svn/ver/2390/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistateDisabled.cpp
+END
+pathfinder.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 158
+/svn/IGFEB10/!svn/ver/2912/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/pathfinder.cpp
+END
+aistateGetflag.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 162
+/svn/IGFEB10/!svn/ver/2843/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistateGetflag.cpp
+END
+aistateProtectflag.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 166
+/svn/IGFEB10/!svn/ver/2843/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistateProtectflag.cpp
+END
+aistateDisabled.h
+K 25
+svn:wc:ra_dav:version-url
+V 161
+/svn/IGFEB10/!svn/ver/2190/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistateDisabled.h
+END
+aistateIdle.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 159
+/svn/IGFEB10/!svn/ver/2796/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistateIdle.cpp
+END
+aistateGetflag.h
+K 25
+svn:wc:ra_dav:version-url
+V 160
+/svn/IGFEB10/!svn/ver/2276/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistateGetflag.h
+END
+pathfinder.h
+K 25
+svn:wc:ra_dav:version-url
+V 156
+/svn/IGFEB10/!svn/ver/2874/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/pathfinder.h
+END
+aistateProtectflag.h
+K 25
+svn:wc:ra_dav:version-url
+V 164
+/svn/IGFEB10/!svn/ver/2299/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistateProtectflag.h
+END
+aistate.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 155
+/svn/IGFEB10/!svn/ver/2446/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistate.cpp
+END
+aistateRetrieveflag.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 167
+/svn/IGFEB10/!svn/ver/2668/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistateRetrieveflag.cpp
+END
+aisubstateMove.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 162
+/svn/IGFEB10/!svn/ver/2874/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aisubstateMove.cpp
+END
+aisubstateAttack.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 164
+/svn/IGFEB10/!svn/ver/2299/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aisubstateAttack.cpp
+END
+aistateIdle.h
+K 25
+svn:wc:ra_dav:version-url
+V 157
+/svn/IGFEB10/!svn/ver/2190/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/Player%20Objects/AI/aistateIdle.h
+END

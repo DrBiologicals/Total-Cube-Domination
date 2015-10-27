@@ -1,0 +1,1892 @@
+// 
+//  Diploma of Interactive Gaming 
+//  Game Development Faculty 
+//  Media Design School 
+//  Auckland
+//  New Zealand
+// 
+//  (c) 2005-2010 Media Design School
+//
+//  File Name   :   tank.cpp
+//  Description :   tank.cppfor implementation of tank.h
+//  Author      :   Rigardt de Vries
+//  Mail        :   rigardt.vries@mediadesign.school.nz
+//
+
+// Library Includes
+
+// Local Includes
+#include "projectile.h"
+#include "bullet.h"
+#include "empbomb.h"
+#include "mine.h"
+#include "../../engine/totalcubedomination.h"
+#include "../../engine/graphics and sound/renderer.h"
+#include "../../engine/graphics and sound/modelmanager.h"
+#include "../../engine/graphics and sound/model.h"
+#include "../../engine/graphics and sound/TextureManager.h"
+#include "../../engine/graphics and sound/soundmanager.h"
+#include "../particle/picparticleemitter.h"
+#include "../particle/emittermanager.h"
+#include "../Terrain Objects/flag.h"
+#include "Power up/powerup.h"
+#include "ai/pathfinder.h"
+#ifdef _DEBUG
+#include "../../engine/logging/logmanager.h"
+#endif // _DEBUG
+
+// This Includes
+#include "tank.h"
+
+// Static Variables
+const uint32 MAX_TANK_EMP_COUNT = 3;
+
+// Static Function Prototypes
+
+// Implementation
+
+CTank::CTank()
+: m_fEMPCoolDown(0.0f)
+, m_fPlasmaCoolDown(0.0f)
+, m_fMovementSpeed(0.0f)
+, m_fMaxShield(100.0f)
+, m_fCurrentShield(100.0f)
+, m_fMaxOverShield(100.0f)
+, m_fOverShield(0.0f)
+, m_fShieldRechargeRate(10.0f)
+, m_fShieldRechargeTimer(0.0f)
+, m_iExtraShieldPIC(0)
+, m_iBulletDamageIncreasePIC(0)
+, m_iMineExplodeRadiusIncreasePIC(0)
+, m_iProjectileSpeedIncreasePIC(0)
+, m_iMoveSpeedIncreasePIC(0)
+, m_pFlag(0)
+, m_pMine(0)
+, m_sDirection(DIRECTION_UP)
+, m_eFacePosition(FACE_TOP)
+, m_eTeam(TEAM_NEUTRAL)
+, m_uiModelID(BAD_ID)
+, m_uiTextureID(BAD_ID)
+, m_uiTurretModelID(BAD_ID)
+, m_uiOverShieldModelID(BAD_ID)
+, m_uiOverShieldTextureID(BAD_ID)
+, m_uiEMPCount(3)
+, m_fTransitionTime(0.0f)
+, m_bTransitioning(false)
+, m_bOnFaultyMagPlate(false)
+, m_bShutDown(false)
+, m_fTurretAngle(0.0f)
+, m_fTurretTargetAngle(0.0f)
+, m_pEMP(0)
+, m_fPowerUpTimer(0.0f)
+, m_bIsChargingOverShield(false)
+, m_ePowerUpType(POWERUP_MAX)
+, m_uiTankID(0)
+, m_iTeamKills(0)
+, m_iEnemyKilled(0)
+, m_iNumDeaths(0)
+, m_iNumFlagsCaptured(0)
+, m_bTurret(true)
+, m_fMineCoolDown(0.0f)
+, m_bIsMineCool(true)
+, m_bAimed(false)
+, m_bMoved(false)
+, m_bShot(false)
+, m_fRespawnCameraTimer(0.0f)
+, m_fRespawnCameraEnd(5.0f)
+{
+	memset(&m_vec2TargetPosition, 0, sizeof(m_vec2TargetPosition));
+    memset(&m_vec3TransitionDirection, 0, sizeof(m_vec3TransitionDirection));
+    memset(&m_vec3TransitionRight, 0, sizeof(m_vec3TransitionRight));
+    memset(&m_vec3TransitionUp, 0, sizeof(m_vec3TransitionUp));
+    memset(&m_vec3MoveEffectDirection, 0, sizeof(m_vec3MoveEffectDirection));
+    D3DXQuaternionIdentity(&m_quatTransitionAngle);
+    D3DXQuaternionIdentity(&m_quatBaseRotation);
+    D3DXQuaternionIdentity(&m_quatOriginAngle);
+}
+
+CTank::~CTank()
+{
+    for (std::list<CBullet*>::iterator iter = m_listBullets.begin(); 
+		iter != m_listBullets.end(); ++iter)
+	{
+		delete *iter;
+    }
+
+	m_listBullets.clear();
+
+	if(0 != m_pEMP)
+	{
+		delete m_pEMP;
+	}
+	m_pEMP = 0;
+
+	if(m_pMine != 0)
+	{
+		delete m_pMine;
+		m_pMine = 0;
+	}
+}
+
+/*
+* Initialise
+* @author Rigardt de Vries
+* @param _vec3Position		the tank's position.
+* @param _uiTextureID		the tank's texture ID.
+* @param _uiModelID			the tank's model ID.
+* @param _eTeam				the tank's team.
+* @param _eFace
+* @param _uiOverShieldModelID - the over shield model ID.
+* @param _uiOverShieldTextureID - the over shield texture ID.
+* @return bool
+*/
+bool
+CTank::Initialise(D3DXVECTOR3 _vec3Position, uint32 _uiTextureID, uint32 _uiModelID, ETeam _eTeam,
+				  EFacePosition _eFace, uint32 _uiOverShieldModelID, uint32 _uiOverShieldTextureID)
+{
+    CRenderEntity::Initialise();
+
+	m_uiTankID = BAD_ID;
+
+	// Initialise all the variables that are passed in.
+	D3DXMatrixIdentity(&m_matWorld);
+    D3DXMatrixIdentity(&m_matTurretWorld);
+
+	m_eFacePosition = _eFace;
+
+	// Set the up, right and dir vectors.
+	m_vec3Up = g_atUpRightDirectionVecs[m_eFacePosition].vec3Up;
+	m_vec3Right = g_atUpRightDirectionVecs[m_eFacePosition].vec3Right;
+	m_vec3Direction = g_atUpRightDirectionVecs[m_eFacePosition].vec3Direction;
+
+    m_vec3Position =  _vec3Position;
+
+	// Set the world matrix using the vectors.
+	m_matWorld._11 = m_vec3Right.x; m_matWorld._21 = m_vec3Up.x; m_matWorld._31 = m_vec3Direction.x; m_matWorld._41 = m_vec3Position.x;
+	m_matWorld._12 = m_vec3Right.y; m_matWorld._22 = m_vec3Up.y; m_matWorld._32 = m_vec3Direction.y; m_matWorld._42 = m_vec3Position.y;
+	m_matWorld._13 = m_vec3Right.z; m_matWorld._23 = m_vec3Up.z; m_matWorld._33 = m_vec3Direction.z; m_matWorld._43 = m_vec3Position.z;
+
+    // Set the turrets world matrix
+    m_matTurretWorld._11 = m_vec3Right.x; m_matTurretWorld._21 = m_vec3Up.x; m_matTurretWorld._31 = m_vec3Direction.x; m_matTurretWorld._41 = m_vec3Position.x;
+	m_matTurretWorld._12 = m_vec3Right.y; m_matTurretWorld._22 = m_vec3Up.y; m_matTurretWorld._32 = m_vec3Direction.y; m_matTurretWorld._42 = m_vec3Position.y;
+	m_matTurretWorld._13 = m_vec3Right.z; m_matTurretWorld._23 = m_vec3Up.z; m_matTurretWorld._33 = m_vec3Direction.z; m_matTurretWorld._43 = m_vec3Position.z;
+
+	// Set the texture and model IDs;
+	m_uiTextureID = _uiTextureID;
+	m_uiModelID = _uiModelID;
+	m_uiOverShieldModelID = _uiOverShieldModelID;
+	m_uiOverShieldTextureID = _uiOverShieldTextureID;
+
+	m_vec3BaseTurretOffset = D3DXVECTOR3(0.0f ,0.0f, 0.0f);
+
+	// Set the Team
+	m_eTeam = _eTeam;
+	SetTeam(_eTeam);
+
+	//m_vec3Position = _vec3Position;
+	CPathfinder::ConvertUnit3DtoTile2D(m_eFacePosition, m_vec3Position, m_vec2Position);
+
+	m_fMovementSpeed = 9.0f;
+
+    m_quatBaseRotation = g_aquatFaceQuaternions[m_eFacePosition];
+
+	// Check that this is correct this is probly wrong but yeah.
+	D3DXVECTOR3* pFirstVertex = 0;
+
+	LPD3DXMESH pMesh = CModelManager::GetInstance().GetModel(m_uiModelID)->GetModel();
+
+	pMesh->LockVertexBuffer(0, (void**)&pFirstVertex);
+
+	D3DXComputeBoundingBox(pFirstVertex, 
+							pMesh->GetNumVertices(),
+							pMesh->GetNumBytesPerVertex(), 
+							&m_tOBB.m_vec3Min, &m_tOBB.m_vec3Max);
+
+	pMesh->UnlockVertexBuffer();
+
+	SetAlive(true);
+
+	m_vec2TargetPosition = m_vec2Position;
+
+	return (true);
+}
+
+/*
+* Process
+* @author Rigardt de Vries
+* @param _fDeltaTick
+* @return void
+*/
+void
+CTank::Process(float32 _fDeltaTick)
+{
+	if(m_pMine != 0)
+	{
+	
+		if(!m_pMine->IsActive())
+		{
+			delete m_pMine;
+			m_pMine = 0;
+		}
+	}
+	if(!GetMineCool())
+	{
+		CheckMineCool(_fDeltaTick);
+	}
+	if(GetAlive() == true)
+	{
+		if (!m_bShutDown)
+		{
+			m_fMaxShield = (BASE_TANK_SHIELD + (0.1f * m_iExtraShieldPIC * BASE_TANK_SHIELD));
+
+			if (m_bTransitioning)
+			{
+				// Face transitioning
+				m_fTransitionTime += _fDeltaTick;
+
+				if (m_fTransitionTime >= FACE_TRANSITION_TIME)
+				{
+					m_fTransitionTime = 0.0f;
+
+					m_quatBaseRotation = m_quatTransitionAngle;
+
+					m_bTransitioning = false;
+
+                    m_eFacePosition = m_eTargetFace;
+
+                    m_vec3Position += m_vec3Direction;
+				}
+				else
+				{
+					D3DXQuaternionSlerp(&m_quatBaseRotation, &m_quatOriginAngle, &m_quatTransitionAngle, m_fTransitionTime * FACE_TRANSITION_RECIPROCAL);
+				}
+			}
+			if (!IsTransitioning())
+			{
+				// rotate the tank
+				m_CurrentAngle.TurnTowardsAngle(m_TargetAngle, TANK_TURN_RATE * _fDeltaTick);
+			}
+
+			//// Shield ////
+			if (m_fCurrentShield < 0.0f)
+			{
+				m_fCurrentShield = 0.0f;
+			}
+
+			m_fShieldRechargeTimer += _fDeltaTick;
+
+			if (m_fCurrentShield != m_fMaxShield)
+			{
+				if (m_fShieldRechargeTimer > 2.5f)
+				{
+					m_fCurrentShield += _fDeltaTick * m_fShieldRechargeRate;
+				}
+				if (m_fCurrentShield > m_fMaxShield )
+				{
+					m_fCurrentShield = m_fMaxShield;
+				}
+			}
+
+			m_fEMPCoolDown += _fDeltaTick;
+			m_fPlasmaCoolDown += _fDeltaTick;
+
+			if (m_eFacePosition == FACE_TOP || m_eFacePosition == FACE_BOTTOM)
+			{
+				m_vec3Position.y = g_atUpRightDirectionVecs[m_eFacePosition].vec3Up.y * 23.0f;
+			}
+			else if (m_eFacePosition == FACE_LEFT || m_eFacePosition == FACE_RIGHT)
+			{
+				m_vec3Position.x = g_atUpRightDirectionVecs[m_eFacePosition].vec3Up.x * 23.0f;
+			}
+			else if (m_eFacePosition == FACE_FRONT || m_eFacePosition == FACE_BACK)
+			{
+				m_vec3Position.z = g_atUpRightDirectionVecs[m_eFacePosition].vec3Up.z * 23.0f;
+			}
+        }
+        else
+		{
+			m_fEMPCoolDown += _fDeltaTick;
+			if (m_fEMPCoolDown > 1.0f)
+			{
+				m_bShutDown = false;
+			}
+		}
+        
+		if(m_sDirection == DIRECTION_UP)
+		{
+			if(m_vec2Position.y > m_vec2TargetPosition.y)
+			{					
+				m_vec2Position.y -= (1.5f * _fDeltaTick);		
+			}
+		}
+
+		CPathfinder::ConvertTile2DtoUnit3D(m_eFacePosition, m_vec2Position, m_vec3Position);
+
+		m_vec3Position += 0.5f * g_atUpRightDirectionVecs[m_eFacePosition].vec3Up;
+
+        D3DXMATRIX matrox;
+
+        D3DXMatrixRotationQuaternion(&matrox, &m_quatBaseRotation);
+
+        D3DXVec3TransformCoord(&m_vec3TransitionUp, &g_atUpRightDirectionVecs[FACE_TOP].vec3Up, &matrox);
+        D3DXVec3TransformCoord(&m_vec3TransitionDirection, &g_atUpRightDirectionVecs[FACE_TOP].vec3Direction, &matrox);
+		D3DXVec3TransformCoord(&m_vec3TransitionRight, &g_atUpRightDirectionVecs[FACE_TOP].vec3Right, &matrox);
+
+        D3DXMATRIX matrax;
+
+		D3DXMatrixRotationAxis(&matrax, &m_vec3TransitionUp, m_CurrentAngle.GetAngle());
+
+        D3DXVec3TransformCoord(&m_vec3Up, &m_vec3TransitionUp, &matrax);
+        D3DXVec3TransformCoord(&m_vec3Direction, &m_vec3TransitionDirection, &matrax);
+		D3DXVec3TransformCoord(&m_vec3Right, &m_vec3TransitionRight, &matrax);
+
+		// Set the up, right and direction vectors into the world matirx.
+		m_matWorld._11 = m_vec3Right.x; m_matWorld._21 = m_vec3Up.x; m_matWorld._31 = m_vec3Direction.x;
+		m_matWorld._12 = m_vec3Right.y; m_matWorld._22 = m_vec3Up.y; m_matWorld._32 = m_vec3Direction.y;
+		m_matWorld._13 = m_vec3Right.z; m_matWorld._23 = m_vec3Up.z; m_matWorld._33 = m_vec3Direction.z;
+		m_matWorld._41 = m_vec3Position.x;
+		m_matWorld._42 = m_vec3Position.y;
+		m_matWorld._43 = m_vec3Position.z;
+
+		// turret calculations //
+		D3DXMatrixRotationAxis(&matrax, &m_vec3Up, m_fTurretAngle);
+  
+		D3DXVec3TransformCoord(&m_vec3ShootDir, &m_vec3TransitionDirection, &matrax);
+		D3DXVec3TransformCoord(&m_vec3ShootRight, &m_vec3TransitionRight, &matrax);
+
+		// Set the up, right and direction vectors into the world matirx.
+		m_matTurretWorld._11 = m_vec3ShootRight.x; m_matTurretWorld._21 = m_vec3Up.x; m_matTurretWorld._31 = m_vec3ShootDir.x;
+		m_matTurretWorld._12 = m_vec3ShootRight.y; m_matTurretWorld._22 = m_vec3Up.y; m_matTurretWorld._32 = m_vec3ShootDir.y;
+		m_matTurretWorld._13 = m_vec3ShootRight.z; m_matTurretWorld._23 = m_vec3Up.z; m_matTurretWorld._33 = m_vec3ShootDir.z;
+		m_matTurretWorld._41 = m_vec3Position.x;
+		m_matTurretWorld._42 = m_vec3Position.y;
+		m_matTurretWorld._43 = m_vec3Position.z;
+		  
+		// If the tank is carrying a flag...
+		if(true == HasFlag())
+		{
+			// Update the flag position.
+			m_pFlag->SetVectors(m_vec3Up, m_vec3Right, m_vec3Direction, m_vec3Position);
+			m_pFlag->SetFacePosition(m_eFacePosition);
+		}
+
+		if(m_ePowerUpType == POWERUP_INVISIBILITY)
+		{
+			m_fPowerUpTimer += _fDeltaTick;
+
+			if(m_fPowerUpTimer > 10.0f)
+			{
+				m_fPowerUpTimer = 0.0f;
+				m_ePowerUpType = POWERUP_MAX;
+			}
+		}
+
+		// If player has an over shield...
+		if(m_ePowerUpType == POWERUP_OVERSHIELD)
+		{
+			// If it hasn't charged fully yet...
+			if(true == m_bIsChargingOverShield)
+			{
+				// Charge normal shield before charging the over shield.
+				if(m_fCurrentShield < m_fMaxShield)
+				{
+					m_fCurrentShield += _fDeltaTick * (m_fMaxShield * 0.5f);
+
+					if(m_fCurrentShield > m_fMaxShield)
+					{
+						m_fCurrentShield = m_fMaxShield;
+					}
+				}
+				// Charge over shield.
+				else
+				{
+					m_fOverShield += _fDeltaTick * (m_fMaxOverShield * 0.5f);
+
+					if(m_fOverShield > m_fMaxOverShield)
+					{
+						m_fOverShield = m_fMaxOverShield;
+						m_bIsChargingOverShield = false;
+					}
+				}
+			}
+			// Else decrement the shield.
+			else
+			{
+				m_fOverShield -= _fDeltaTick * (m_fMaxOverShield * 0.1f);
+
+				if(m_fOverShield <= 0.0f)
+				{
+					m_fOverShield = 0.0f;
+					m_ePowerUpType = POWERUP_MAX;
+				}
+			}
+		}
+		
+		// If this tank is a human player, and has the invisibility power-up, add to it's own viewport only.
+		if(m_uiTankID != BAD_ID && m_ePowerUpType == POWERUP_INVISIBILITY)
+		{
+			CTotalCubeDomination::GetInstance().GetRenderer()->AddToViewport(this, RENDERTYPE_3DCOORDS | RENDERTYPE_OPAQUE, m_uiTankID);
+					
+		}
+		// If this tank does not have the invisibility power-up, add to ALL viewports.
+		else if(m_ePowerUpType != POWERUP_INVISIBILITY)
+		{
+			CTotalCubeDomination::GetInstance().GetRenderer()->AddToAllViewports(this, RENDERTYPE_3DCOORDS | RENDERTYPE_OPAQUE);
+		}
+		// Else the tank belongs to an AI player with the invisibility power-up, so do not add to any viewports.
+
+		CreateAABB();
+    } 
+
+    if (m_pEMP)
+		{
+			if (!m_pEMP->GetAlive() )
+			{
+				delete m_pEMP;
+				m_pEMP = 0;
+			}
+		}
+
+	//This is for respawning the player
+	//This is just to make it look more interesting
+	if(!GetAlive())
+	{
+		m_fRespawnCameraTimer += _fDeltaTick;
+		if(m_fRespawnCameraTimer >= m_fRespawnCameraEnd)
+		{
+			m_fRespawnCameraTimer = 0.0f;
+			SetPosition(D3DXVECTOR3(0.0f,0.0f,0.0f));
+			if (m_eTeam == TEAM_GREEN)
+			{
+				m_eFacePosition = FACE_TOP;
+			}
+			else
+			{
+				m_eFacePosition = FACE_BOTTOM;
+			}
+		}
+	}
+	DeleteBullet();
+}
+
+/*
+* Draw
+* @author Rigardt de Vries
+* @return void
+*/
+void
+CTank::Draw()
+{
+	// Grab the renderer.
+	CRenderer* pRenderer = CTotalCubeDomination::GetInstance().GetRenderer();
+
+	//// Draw the Tank ////
+    
+	// Set the world matrix, and the texture of the tank and then draw the model using the IDs.
+	pRenderer->SetWorldMatrix(m_matWorld);
+    
+
+	if(m_ePowerUpType == POWERUP_INVISIBILITY)
+	{
+		pRenderer->GetDevice()->SetRenderState(D3DRS_LIGHTING, FALSE);
+		pRenderer->GetDevice()->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+		pRenderer->GetDevice()->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);
+
+		CTextureManager::GetInstance().SetTexture(0, m_uiTextureID);
+		CModelManager::GetInstance().Draw(m_uiModelID);
+		pRenderer->SetWorldMatrix(m_matTurretWorld);
+		CModelManager::GetInstance().Draw(m_uiTurretModelID);
+
+		pRenderer->GetDevice()->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ZERO);
+		pRenderer->GetDevice()->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+		pRenderer->GetDevice()->SetRenderState(D3DRS_LIGHTING, TRUE);
+	}
+	else
+	{
+		CTextureManager::GetInstance().SetTexture(0, m_uiTextureID);
+		CModelManager::GetInstance().Draw(m_uiModelID);
+
+		/////////////////////////
+		//// Draw the turret ////
+		/////////////////////////
+
+		// Set the world matrix, and the texture of the turrent, then draw the model using the IDs.
+		pRenderer->SetWorldMatrix(m_matTurretWorld);
+		CModelManager::GetInstance().Draw(m_uiTurretModelID);
+	}
+
+
+
+
+	// Draw the over shield (if tank has one).
+	if(m_ePowerUpType == POWERUP_OVERSHIELD)
+	{
+		D3DXMATRIX matShieldWorld;
+		D3DXMatrixIdentity(&matShieldWorld);
+		matShieldWorld._11 += 3.0f;
+		matShieldWorld._22 += 3.0f;
+		matShieldWorld._33 += 3.0f;
+		matShieldWorld._41 += m_matWorld._41;
+		matShieldWorld._42 += m_matWorld._42;
+		matShieldWorld._43 += m_matWorld._43;
+		pRenderer->SetWorldMatrix(matShieldWorld);
+
+		pRenderer->GetDevice()->SetRenderState(D3DRS_LIGHTING, FALSE);
+		pRenderer->GetDevice()->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+		pRenderer->GetDevice()->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);
+
+		CTextureManager::GetInstance().SetTexture(0, m_uiOverShieldTextureID);
+		CModelManager::GetInstance().Draw(m_uiOverShieldModelID);
+
+		pRenderer->GetDevice()->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ZERO);
+		pRenderer->GetDevice()->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+		pRenderer->GetDevice()->SetRenderState(D3DRS_LIGHTING, TRUE);
+	}
+
+}
+
+/*
+* kills the tank
+* @author Rigardt de Vries
+* @return void
+*/
+void
+CTank::Die()
+{
+	// remove the flag
+	if (GetFlag() )
+    {
+        GetFlag()->SetFlagPickedUp(false);
+        RemoveFlag();
+    }
+
+	// set alive to false
+    SetAlive(false);
+
+	// stop it from transitioning
+	m_bTransitioning = false;
+
+	// position the tank to the centre
+    //SetPosition(D3DXVECTOR3(20.0f, 20.0f, 20.0f) );
+
+	// Set the up, right and dir vectors.
+	m_vec3Up = g_atUpRightDirectionVecs[m_eFacePosition].vec3Up;
+	m_vec3Right = g_atUpRightDirectionVecs[m_eFacePosition].vec3Right;
+	m_vec3Direction = g_atUpRightDirectionVecs[m_eFacePosition].vec3Direction;
+
+	// Set the up, right and direction vectors into the world matirx.
+	m_matWorld._11 = m_vec3Right.x; m_matWorld._21 = m_vec3Up.x; m_matWorld._31 = m_vec3Direction.x;
+	m_matWorld._12 = m_vec3Right.y; m_matWorld._22 = m_vec3Up.y; m_matWorld._32 = m_vec3Direction.y;
+	m_matWorld._13 = m_vec3Right.z; m_matWorld._23 = m_vec3Up.z; m_matWorld._33 = m_vec3Direction.z;
+
+}
+
+/*
+* ShootPlasma
+* @author Rigardt de Vries
+* @return void
+*/
+void
+CTank::ShootPlasma()
+{
+	if(GetAlive() &&
+		!GetDisabled())
+	{
+		if (!m_bTransitioning)
+		{
+			if (!m_pFlag)
+			{
+				if (m_fPlasmaCoolDown > 0.3333f) 
+				{
+            		m_fPlasmaCoolDown = 0.0f;
+
+					if (m_bMoved == true)
+					{
+						if (m_bShot == false)
+						{
+							m_bShot = true;
+						}
+					}
+
+            		CBullet* pBullet = new CBullet;
+					pBullet->Initialise(m_vec3Position + m_vec3Up * 1.05f + m_vec3ShootDir * 0.7f + m_vec3ShootRight * 0.17f * ((m_bTurret)?(-1.0f):(1.0f)), this, m_vec3ShootDir,
+										m_vec3ShootRight);
+            		pBullet->SetFace(m_eFacePosition);
+            		pBullet->SetMoveSpeed(27.0f + (0.1f * m_iProjectileSpeedIncreasePIC * 27.0f) );
+            		pBullet->SetDamage(20.0f + (0.1f * m_iBulletDamageIncreasePIC * 20.0f) );
+            		m_listBullets.push_back(pBullet);
+
+					if(m_bTurret == true)
+					{
+						m_bTurret = false;
+					}
+					else
+					{
+						m_bTurret = true;
+					}
+				}
+			}
+		}
+	}
+}
+
+/*
+* ShootEMP
+* @author Rigardt de Vries
+* @return void
+*/
+void
+CTank::ShootEMP()
+{
+	if(GetAlive() &&
+		!GetDisabled())
+	{
+		 if (!m_bTransitioning)
+		{
+			if (!m_pFlag)
+			{
+				if (!m_pEMP && m_uiEMPCount != 0) 
+				{
+					--m_uiEMPCount;
+
+					// Basic code not finished yet.
+            		CEMPBomb* pEMP = new CEMPBomb;
+            		pEMP->Initialise(m_vec3Position + m_vec3Up * 1.05f + m_vec3ShootDir * 0.7f, this, m_vec3ShootDir, m_vec3ShootRight); 
+            		pEMP->SetFace(m_eFacePosition);
+            		pEMP->SetMoveSpeed(12.0f + (0.1f * m_iProjectileSpeedIncreasePIC * 12.0f) );
+            		pEMP->SetDamage(200.0f);
+            		m_pEMP = pEMP;
+				}
+			}
+		}
+	}
+}
+
+/*
+* 
+* @author
+* @return void
+*/
+void
+CTank::DropMine()
+{
+	if(GetAlive() &&
+		!GetDisabled() &&
+		GetMineCool())
+	{
+		if (!m_bTransitioning)
+		 {
+			if(m_pMine == 0)
+			{
+				m_pMine = new CMine;
+				m_pMine->Initialise(this);
+				SetMineCool(false);
+			}
+		}
+    }
+}
+
+/*
+* 
+* @author Rigardt de Vries (original structure), modified for 2D collision by Cameron
+* @param _fDeltaTick		the game time.
+* @param _sDirection		the direction the tank will move in.
+* @return void
+*/
+void
+CTank::Move(float32 _fDeltaTick, EDirection _sDirection)
+{
+    m_sDirection = _sDirection;
+
+	//CPathfinder::ConvertUnit3DtoTile2D(m_eFacePosition, m_vec3Position, m_vec2Position);
+
+	float32 fTankHalfLength = 0.33f;
+	float32 fTankHalfWidth = 0.24f;
+
+	if(GetAlive() &&
+		!GetDisabled())
+	{
+        if (!m_bTransitioning &&
+			m_CurrentAngle.GetAngle() == m_TargetAngle.GetAngle())
+        {
+			if (m_bMoved == false)
+			{
+				m_bMoved = true;
+			}
+            float32 fPlateModifier = D3DXVec3Dot(&m_vec3Direction, &m_vec3MoveEffectDirection);
+
+            float32 fSpeed = (_fDeltaTick * (((HasFlag())?(0.8f):(1.0f)) * (m_fMovementSpeed + 0.05f * m_iMoveSpeedIncreasePIC * m_fMovementSpeed) + fPlateModifier * 4.5f)) * 0.3333333f;
+
+            if (m_sDirection == DIRECTION_UP)
+	        {
+				m_TargetAngle.SetAngle(0.0f);
+
+				if (m_TargetAngle.GetAngle() == m_CurrentAngle.GetAngle())
+				{
+					if(m_vec2Position.y == m_vec2TargetPosition.y)
+					{
+						m_vec2TargetPosition.y = m_vec2Position.y - 1.0f;
+					}
+					//m_vec2Position.y -= fSpeed;
+					/*float32 fX1 = m_vec2Position.x - fTankHalfWidth;
+					float32 fX2 = m_vec2Position.x + fTankHalfWidth;
+					float32 fHitPos = floorf(m_vec2Position.y)+fTankHalfLength;
+
+					D3DXVECTOR2 vec2Corner1(fX1, m_vec2Position.y);
+					D3DXVECTOR2 vec2Corner2(fX2, m_vec2Position.y);*/
+
+					/*if((CPathfinder::GetInstance().IsConnecting(m_sDirection, vec2Corner1, m_eFacePosition))
+						&&(CPathfinder::GetInstance().IsConnecting(m_sDirection, vec2Corner2, m_eFacePosition)))
+					{
+						m_vec2Position.y -= fSpeed;
+					}
+					else
+					{
+						m_vec2Position.y -= 1.5f;
+						if(m_vec2Position.y<fHitPos)
+						{
+							m_vec2Position.y = fHitPos;
+						}
+					}*/
+				}
+				
+	        }
+	        else if (m_sDirection == DIRECTION_DOWN)
+	        {
+                m_TargetAngle.SetAngle(D3DXToRadian(180.0f));
+
+                if (m_TargetAngle.GetAngle() == m_CurrentAngle.GetAngle())
+                {
+					float32 fX1 = m_vec2Position.x - fTankHalfWidth;
+					float32 fX2 = m_vec2Position.x + fTankHalfWidth;
+					float32 fHitPos = ceilf(m_vec2Position.y)-fTankHalfLength;
+
+					D3DXVECTOR2 vec2Corner1(fX1, m_vec2Position.y);
+					D3DXVECTOR2 vec2Corner2(fX2, m_vec2Position.y);
+
+					if((CPathfinder::GetInstance().IsConnecting(m_sDirection, vec2Corner1, m_eFacePosition))
+						&&(CPathfinder::GetInstance().IsConnecting(m_sDirection, vec2Corner2, m_eFacePosition)))
+					{
+						m_vec2Position.y += fSpeed;
+					}else{
+						m_vec2Position.y += fSpeed;
+						if(m_vec2Position.y>fHitPos)
+						{
+							m_vec2Position.y = fHitPos;
+						}
+					}
+				}
+	        }
+	        else if (m_sDirection == DIRECTION_LEFT)
+	        {
+                m_TargetAngle.SetAngle(D3DXToRadian(270.0f));
+
+                if (m_TargetAngle.GetAngle() == m_CurrentAngle.GetAngle())
+                {
+					//loop while speed is left
+					//while(fSpeed>0)
+					//{
+						float32 fY1 = m_vec2Position.y - fTankHalfWidth;
+						float32 fY2 = m_vec2Position.y + fTankHalfWidth;
+						float32 fHitPos = floorf(m_vec2Position.x)+fTankHalfLength;
+
+						D3DXVECTOR2 vec2Corner1(m_vec2Position.x, fY1);
+						D3DXVECTOR2 vec2Corner2(m_vec2Position.x, fY2);
+
+						if((CPathfinder::GetInstance().IsConnecting(m_sDirection, vec2Corner1, m_eFacePosition))
+							&&(CPathfinder::GetInstance().IsConnecting(m_sDirection, vec2Corner2, m_eFacePosition)))
+						{
+							m_vec2Position.x -= fSpeed;
+						}
+                        else
+                        {
+							m_vec2Position.x -= fSpeed;
+							if(m_vec2Position.x<fHitPos)
+							{
+								m_vec2Position.x = fHitPos;
+							}
+						}
+					//}
+				}
+	        }
+	        else if (m_sDirection == DIRECTION_RIGHT)
+	        {
+                m_TargetAngle.SetAngle(D3DXToRadian(90.0f));
+
+                if (m_TargetAngle.GetAngle() == m_CurrentAngle.GetAngle())
+                {
+					float32 fY1 = m_vec2Position.y - fTankHalfWidth;
+					float32 fY2 = m_vec2Position.y + fTankHalfWidth;
+					float32 fHitPos = ceilf(m_vec2Position.x)-fTankHalfLength;
+
+					D3DXVECTOR2 vec2Corner1(m_vec2Position.x, fY1);
+					D3DXVECTOR2 vec2Corner2(m_vec2Position.x, fY2);
+
+					if((CPathfinder::GetInstance().IsConnecting(m_sDirection, vec2Corner1, m_eFacePosition))
+						&&(CPathfinder::GetInstance().IsConnecting(m_sDirection, vec2Corner2, m_eFacePosition)))
+					{
+						m_vec2Position.x += fSpeed;
+					}
+                    else
+                    {
+						m_vec2Position.x += fSpeed;
+						if(m_vec2Position.x>fHitPos)
+						{
+							m_vec2Position.x = fHitPos;
+						}
+					}
+				}
+	        }
+
+			//CPathfinder::ConvertTile2DtoUnit3D(m_eFacePosition, m_vec2Position, m_vec3Position);
+
+			//m_vec3Position += 0.5f * g_atUpRightDirectionVecs[m_eFacePosition].vec3Up;
+        }
+	
+    }
+}
+
+void
+CTank::StartTransition(EFacePosition _eTargetFace)
+{
+	if (!IsTransitioning() &&
+		m_CurrentAngle.GetAngle() == m_TargetAngle.GetAngle())
+    {
+	    m_bTransitioning = true;
+
+        m_eTargetFace = _eTargetFace;
+
+        m_quatOriginAngle = g_aquatFaceQuaternions[m_eFacePosition];
+
+        //m_quatOriginAngle = m_quatBaseRotation;
+
+        //D3DXQuaternionRotationYawPitchRoll(&m_quatOriginAngle, 0, 0, 0);
+
+	    m_quatTransitionAngle = g_aquatFaceQuaternions[m_eTargetFace];
+	}
+
+	CPathfinder::ConvertUnit3DtoTile2D(m_eFacePosition, m_vec3Position, m_vec2Position);
+}
+
+/*
+* Remove Flag
+* @author Rigardt de Vries
+* @return void
+*/
+void
+CTank::RemoveFlag()
+{
+	m_pFlag = 0;
+}
+
+/*
+* GetEMPCount
+* @author Rigardt de Vries
+* @return uint32
+*/
+uint32
+CTank::GetEMPCount()
+{
+	return (m_uiEMPCount);
+}
+
+/*
+* SetEMPCount
+* @author Rigardt de Vries
+* @param _uiEMPCount
+* @return void
+*/
+void 
+CTank::SetEMPCount(uint32 _uiEMPCount)
+{
+	m_uiEMPCount = _uiEMPCount;
+}
+
+/**
+* 
+* Adds one to EMP count if the current count is less than the MAX_TANK_EMP_COUNT.
+* 
+* @author Rebeccah Cox
+* @return void
+*/
+void
+CTank::RechargeEMP()
+{
+	if(MAX_TANK_EMP_COUNT > m_uiEMPCount)
+	{
+		m_uiEMPCount = MAX_TANK_EMP_COUNT;
+	}
+}
+
+/*
+* SetShootAndRightDir
+* @author Rigardt de Vries
+* @param _vec3ShootDir			the new shoot direction vector
+* @param _vec3ShootRight		the new shoot right vector
+* @return void
+*/
+void
+CTank::SetShootRightAndDir(D3DXVECTOR3& _vec3ShootDir, D3DXVECTOR3& _vec3ShootRight) 
+{
+	m_vec3ShootDir = _vec3ShootDir;
+	m_vec3ShootRight = _vec3ShootRight;
+}
+
+/*
+* GetWorldMatrix
+* @author Rigardt de Vries
+* @return D3DXMATRIX
+*/
+const D3DXMATRIX&
+CTank::GetWorldMatrix() const
+{
+	return (m_matWorld);
+}
+
+/*
+* SetMaxShield
+* @author Rigardt de Vries
+* @param _fShield		the new shield value
+* @return void
+*/
+void 
+CTank::SetMaxShield(float32 _fShield)
+{
+	m_fMaxShield = _fShield;
+}
+
+/*
+* SetCurrentShield
+* @author Rigardt de Vries
+* @param _fShield		the new shield value
+* @return void
+*/
+void 
+CTank::SetCurrentShield(float32 _fShield)
+{
+	m_fCurrentShield = _fShield;
+}
+
+/*
+* SetMovementSpeed
+* @author Rigardt de Vries
+* @param _fSpeed		the new speed value
+* @return void
+*/
+void 
+CTank::SetMovementSpeed(float32 _fSpeed)
+{
+	m_fMovementSpeed = _fSpeed;
+}
+
+/*
+* GetMaxShield
+* @author Rigardt de Vries
+* @return float32
+*/
+float32 
+CTank::GetMaxShield()
+{
+	return (m_fMaxShield);
+}
+
+/*
+* GetCurrentShield
+* @author Rigardt de Vries
+* @return float32
+*/
+float32 
+CTank::GetCurrentShield()
+{
+	return (m_fCurrentShield);
+}
+
+/*
+* GetMovementSpeed
+* @author Rigardt de Vries
+* @return float32
+*/
+float32 
+CTank::GetMovementSpeed()
+{
+	return (m_fMovementSpeed);
+}
+
+/*
+* SetPlasmaCoolDown
+* @author Rigardt de Vries
+* @param _fCoolDown			the cooldown of the plasma cannons.
+* @return void
+*/
+void 
+CTank::SetPlasmaCoolDown(float32 _fCoolDown)
+{
+	m_fPlasmaCoolDown = _fCoolDown;
+}
+
+/*
+* SetEMPCoolDown
+* @author Rigardt de Vries
+* @param _fCoolDown			the cooldown of the EMP bomb
+* @return void
+*/
+void 
+CTank::SetEMPCoolDown(float32 _fCoolDown)
+{
+	m_fEMPCoolDown = _fCoolDown;
+}
+
+/*
+* GetEMPCoolDown
+* @author Rigardt de Vries
+* @return float32
+*/
+float32 
+CTank::GetEMPCoolDown()
+{
+	return (m_fEMPCoolDown);
+}
+
+/*
+* GetPlasmaCoolDown
+* @author Rigardt de Vries
+* @return float32
+*/
+float32 
+CTank::GetPlasmaCoolDown()
+{
+	return (m_fPlasmaCoolDown);
+}
+
+/*
+* GetShieldRechargeRate
+* @author Rigardt de Vries
+* @return float32
+*/
+float32
+CTank::GetShieldRechargeRate()
+{
+	return (m_fShieldRechargeRate);
+}
+
+/*
+* GetShieldRechargeTimer
+* @author Rigardt de Vries
+* @return float32
+*/
+float32
+CTank::GetShieldRechargeTimer()
+{
+	return (m_fShieldRechargeTimer);
+}
+
+/*
+* SetShieldRechargeRate
+* @author Rigardt de Vries
+* @param 
+* @return void
+*/
+void
+CTank::SetShieldRechargeRate(float32 _fRate)
+{
+	m_fShieldRechargeRate = _fRate;
+}
+
+/*
+* SetShieldRechargeTimer
+* @author Rigardt de Vries
+* @param 
+* @return void
+*/
+void
+CTank::SetShieldRechargeTimer(float32 _fTime)
+{
+	m_fShieldRechargeTimer = _fTime;
+}
+
+/*
+*
+* Sets the tank to true or false, false is when the tank has been destroyed
+*
+* @author Carsten Scholz
+* @param bAlive is the state at which the tank is currently in
+* @return void
+*
+*/
+void
+CTank::SetAlive(bool bAlive)
+{
+	m_bAlive = bAlive;
+}
+/*
+*
+* Checks if the tank is currently destroyed or is alive
+*
+* @author Carsten Scholz
+* @return bool, returns true if the tank is alive, false if it is destroyed.
+*
+*/
+bool
+CTank::GetAlive()
+{
+	return(m_bAlive);
+}
+/*
+* returns if the tank is shutdown/disabled
+*
+* @author		Cameron MacIntosh
+* @return		true if the tank is disabled, false if the tank is enabled
+*/
+bool
+CTank::GetDisabled() const
+{
+	return(m_bShutDown);
+}
+
+/**
+* 
+* Sets the recharge timer to zero.
+* 
+* @author Rebeccah Cox
+*/
+void
+CTank::ResetRechargeTimer()
+{
+	m_fShieldRechargeTimer = 0.0f;
+}
+
+/*
+*
+* Shutdowns the tank, making it so the player cannot move
+*
+* @author Carsten Scholz
+*
+*/
+void
+CTank::Shutdown()
+{
+	m_bShutDown = true;
+	m_fEMPCoolDown = 0.0f;
+}
+
+/*
+*
+* Sets the team which the tank is currently on
+*
+* @author Carsten Scholz
+* @param _eTeam is the team that the tank is on
+*
+*/
+void
+CTank::SetTeam(ETeam _eTeam)
+{
+	m_eTeam = _eTeam;
+}
+
+/*
+*
+* Gets the team which the tank is currently on
+*
+* @author Carsten Scholz
+* @return Returns the team which the team is on
+*
+*/
+ETeam
+CTank::GetTeam()
+{
+	return(m_eTeam);
+}
+
+/*
+* SetFace
+* @author Rigardt de Vries
+* @param _eFace			the new face
+* @return void
+*/
+void
+CTank::SetFace(EFacePosition _eFace)
+{
+	m_eFacePosition = _eFace;
+}
+
+/*
+* GetFace
+* @author Rigardt de Vries
+* @return EFacePosition
+*/
+EFacePosition
+CTank::GetFacePosition()
+{
+	return (m_eFacePosition);
+}
+
+/*
+* GetPIC
+* @author Rigardt de Vries
+* @param _ePIC          the pic to get
+* @return float32
+*/
+int32 
+CTank::GetPIC(EPIC _ePIC)
+{
+    if (_ePIC == PIC_MOVE_SPEED)
+    {
+        return (m_iMoveSpeedIncreasePIC);
+    }
+    else if(_ePIC == PIC_BULLET_DAMAGE)
+    {
+        return (m_iBulletDamageIncreasePIC);
+    }
+    else if(_ePIC == PIC_BULLET_SPEED)
+    {
+        return (m_iProjectileSpeedIncreasePIC);
+    }
+    else if(_ePIC == PIC_EXPLODE_RADIUS)
+    {
+        return (m_iMineExplodeRadiusIncreasePIC);
+    }
+    else if(_ePIC == PIC_SHIELD)
+    {
+        return (m_iExtraShieldPIC);
+    }
+    return (0);
+}
+
+/*
+* SetPIC
+* @author Rigardt de Vries
+* @param ePIC           the PIC to set
+* @param _iPICValue     the new value for the PIC
+* @return void
+*/
+void 
+CTank::SetPIC(EPIC _ePIC, int32 _iPICValue)
+{
+    if (_ePIC == PIC_MOVE_SPEED)
+    {
+        m_iMoveSpeedIncreasePIC = _iPICValue;
+    }
+    else if(_ePIC == PIC_BULLET_DAMAGE)
+    {
+        m_iBulletDamageIncreasePIC = _iPICValue;
+    }
+    else if(_ePIC == PIC_BULLET_SPEED)
+    {
+        m_iProjectileSpeedIncreasePIC = _iPICValue;
+    }
+    else if(_ePIC == PIC_EXPLODE_RADIUS)
+    {
+        m_iMineExplodeRadiusIncreasePIC = _iPICValue;
+    }
+    else if(_ePIC == PIC_SHIELD)
+    {
+        m_iExtraShieldPIC = _iPICValue;
+    }
+	uint32 uiID;
+	uiID = CEmitterManager::GetInstance().AddEmitter(1, m_vec3Position, PARTICLE_PIC, m_eTeam, 0, 0, this);
+	dynamic_cast<CPICParticleEmitter*>(CEmitterManager::GetInstance().GetEmitter(uiID))->SetPicType(_ePIC);
+}
+
+/*
+* SetTurretTextureAndModelIDs
+* @author Rigardt de Vries
+* @param _uiTextureID           the texture id
+* @param _uiModelID             the model id
+* @return void
+*/
+void 
+CTank::SetTurretModelID(uint32 _uiModelID)
+{
+    m_uiTurretModelID = _uiModelID;
+}
+
+/*
+* AddProjectile
+* @author Rigardt de Vries
+* @param _pProjectile       the projectile
+* @return void
+*/
+void
+CTank::AddBullet(CBullet *_pBullet)
+{
+    m_listBullets.push_back(_pBullet);
+}
+
+/*
+* GetProjectileVector
+* @author Rigardt de Vries
+* @return std::vector<CProjectile*>& 
+*/
+std::list<CBullet*>& 
+CTank::GetBulletList()
+{
+    return (m_listBullets);
+}
+
+void
+CTank::DeleteBullet()
+{
+  for (std::list<CBullet*>::iterator iter = m_listBullets.begin(); 
+	iter != m_listBullets.end();)
+	{
+		if (!(*iter)->GetAlive())
+		{
+			delete *iter;
+			iter = m_listBullets.erase(iter);
+		}
+		else
+		{
+			++iter;
+		}
+	}
+}
+
+/*
+* RotateTurret
+* @author Rigardt de Vries
+* @param _sPositiveOrNegative
+* @return
+*/
+void
+CTank::RotateTurret(float32 _fX, float32 _fY, float32 _fDeltaTick)
+{
+	D3DXVECTOR3 vec3TargetVector =	g_atUpRightDirectionVecs[m_eFacePosition].vec3Direction * _fY + 
+									g_atUpRightDirectionVecs[m_eFacePosition].vec3Right * _fX;
+
+	m_fTurretAngle = atan2(D3DXVec3Dot(&vec3TargetVector, &g_atUpRightDirectionVecs[m_eFacePosition].vec3Right), D3DXVec3Dot(&vec3TargetVector, &g_atUpRightDirectionVecs[m_eFacePosition].vec3Direction));
+}
+
+
+/**
+* 
+* Sets the member variable m_pFlag to the pointer passed in. 
+* 
+* @author Rebeccah Cox
+* @param CFlag* _pFlag
+* @return void
+*/
+void
+CTank::SetFlag(CFlag* _pFlag)
+{
+	m_pFlag = _pFlag;
+}
+
+/*
+* GetFlag
+* @author Rigardt de Vries
+* @return CFlag*
+*/
+CFlag*
+CTank::GetFlag()
+{
+	return (m_pFlag);
+}
+
+/**
+* 
+* Returns true if the m_pFlag member variable is pointing to something.
+*	False if the pointer is zero.
+* 
+* @author Rebeccah Cox
+* @return bool - true if tank has a flag pointer.
+*/
+bool
+CTank::HasFlag()
+{
+	if(0 == m_pFlag)
+	{
+		return (false);
+	}
+	else
+	{
+		return (true);
+	}
+}
+
+/**
+* 
+* Returns a pointer to the position vector.
+* 
+* @author Rebeccah Cox
+* @return D3DXVECTOR3* m_vec3Position
+*/
+const D3DXVECTOR3&
+CTank::GetPosition() const
+{
+	return (m_vec3Position);
+}
+
+/*
+* Returns a reference to the 2D tile coordinate
+* @author		Cameron MacIntosh
+* @return		a reference to the tank's 2D vector position
+*/
+const D3DXVECTOR2&
+CTank::GetPosition2D() const
+{
+	return (m_vec2Position);
+}
+
+const D3DXVECTOR3&
+CTank::GetDirection() const
+{
+	return (m_vec3Direction);
+}
+
+/*
+* SetPosition
+* @author Rigardt de Vries
+* @param _vec3Position
+* @return void
+*/
+void
+CTank::SetPosition(const D3DXVECTOR3& _vec3Position) 
+{
+	m_vec3Position = _vec3Position;
+	m_matWorld._41 = m_vec3Position.x;
+	m_matWorld._42 = m_vec3Position.y;
+	m_matWorld._43 = m_vec3Position.z;
+	m_matTurretWorld._41 = m_vec3Position.x;
+	m_matTurretWorld._42 = m_vec3Position.y;
+	m_matTurretWorld._43 = m_vec3Position.z;
+	CreateAABB();
+	CPathfinder::ConvertUnit3DtoTile2D(m_eFacePosition, m_vec3Position, m_vec2Position);
+}
+
+/*
+* Respawn
+* @author Rigardt de Vries
+* @param _tLocation
+* @return void
+*/
+void 
+CTank::Respawn(const TPoint& _tLocation)
+{
+	m_vec3Position = _tLocation.vec3Point;
+	m_eFacePosition = _tLocation.eFacePosition;
+
+    m_quatBaseRotation = g_aquatFaceQuaternions[m_eFacePosition];
+
+	m_fCurrentShield = m_fMaxShield;
+	m_uiEMPCount = 3;
+
+	m_vec3Direction = g_atUpRightDirectionVecs[m_eFacePosition].vec3Direction;
+	m_vec3Right = g_atUpRightDirectionVecs[m_eFacePosition].vec3Right;
+	m_vec3Up = g_atUpRightDirectionVecs[m_eFacePosition].vec3Up;
+
+    m_matWorld._41 = m_vec3Position.x;
+    m_matWorld._42 = m_vec3Position.y;
+    m_matWorld._43 = m_vec3Position.z;
+
+    m_matTurretWorld._41 = m_vec3Position.x;
+    m_matTurretWorld._42 = m_vec3Position.y;
+    m_matTurretWorld._43 = m_vec3Position.z;
+	CreateAABB();
+}
+
+/*
+* AddPic
+* @author Rigardt de Vries
+* @return void
+*/
+void
+CTank::AddPic()
+{
+	EPIC ePic = static_cast<EPIC>((rand() % 5 )+ 1);
+
+	if (!(m_iBulletDamageIncreasePIC >= 10 &&
+		m_iExtraShieldPIC >= 10 &&
+		m_iMineExplodeRadiusIncreasePIC >= 10 &&
+		m_iMoveSpeedIncreasePIC >= 10 &&
+		m_iProjectileSpeedIncreasePIC >= 10))
+	{
+		while (GetPIC(ePic) + 1 > 10)
+		{
+			ePic = static_cast<EPIC>((rand() % 5 )+ 1);
+		}
+
+		SetPIC(ePic,(GetPIC(ePic) + 1));
+	}
+}
+
+/**
+* 
+* Returns a pointer to the current EMP, or zero if no EMP is active.
+* 
+* @author Rebeccah Cox
+* @return CEMPBomb* m_pEMP
+*/
+CEMPBomb*
+CTank::GetEMPBomb()
+{
+	return (m_pEMP);
+}
+
+/*
+* SetOnFaultyMagPlate
+* @author Rigardt de Vries
+* @param _bIsOn             the new bool for is on the plate
+* @return void
+*/
+void
+CTank::SetOnFaultyMagPlate(bool _bIsOn, const D3DXVECTOR3& _vec3Direction)
+{
+    m_bOnFaultyMagPlate = _bIsOn;
+    m_vec3MoveEffectDirection = _vec3Direction;
+}
+
+CMine*
+CTank::GetMine()
+{
+	if(m_pMine != 0)
+	{
+		return(m_pMine);
+	}
+	else
+	{
+		return(0);
+	}
+}
+
+void
+CTank::SetPowerUp(EPowerUpType _ePowerType)
+{
+	m_ePowerUpType = _ePowerType;
+	m_fOverShield = 0.0f;
+
+	// Start charging timer if it is an overshield.
+	if(m_ePowerUpType == POWERUP_OVERSHIELD)
+	{
+		m_bIsChargingOverShield = true;
+	}
+}
+
+EPowerUpType
+CTank::GetPowerUp()
+{
+	return(m_ePowerUpType);
+}
+
+void
+CTank::SetViewport(uint32 _uiID)
+{
+	m_uiTankID = _uiID;
+}
+uint32
+CTank::GetViewportID()
+{
+	return(m_uiTankID);
+}
+
+/*
+* This function returns the transitioning bool
+* @author Rigardt de Vries
+* @return True if the transitioning 
+*/
+bool 
+CTank::IsTransitioning()
+{
+    return (m_bTransitioning);
+}
+
+const D3DXVECTOR3&
+CTank::GetTransitioningDirection() const
+{
+    return (m_vec3TransitionDirection);
+}
+
+const D3DXVECTOR3&
+CTank::GetTransitioningRight() const
+{
+    return (m_vec3TransitionRight);
+}
+
+const D3DXVECTOR3&
+CTank::GetTransitioningUp() const
+{
+    return (m_vec3TransitionUp);
+}
+
+/**
+* 
+* Returns the member variable m_bIsChargingOverShield.
+* It is false if the tank does not have the Over Shield power-up, or if the 
+* Over Shield has charged fully already.
+* 
+* @author Rebeccah Cox
+* @return bool - true if over shield is charging.
+*/
+bool
+CTank::IsChargingOverShield()
+{
+	return (m_bIsChargingOverShield);
+}
+
+/**
+* 
+* Sets the current over shield value to the amount passed in.
+* 
+* @author Rebeccah Cox
+* @param float32 _fShield - the amount to set the over shield to.
+*/
+void
+CTank::SetOverShield(float32 _fShield)
+{
+	m_fOverShield = _fShield;
+}
+
+/**
+* 
+* Returns the value of m_fOverShield.
+* Zero if the tank does not have the Over Shield power-up.
+* 
+* @author Rebeccah Cox
+* @return float32 m_fOverShield - the current over shield value.
+*/
+float32
+CTank::GetCurrentOverShield()
+{
+	return (m_fOverShield);
+}
+
+/**
+* 
+* If the tank has an over shield, that shield is decremented by the
+*	amount passed in, otherwise the normal shield is decremented.
+* 
+* @author Rebeccah Cox
+* @param float32 _fAmount - the amount to decrement the shield by.
+*/
+void
+CTank::DecrementShield(float32 _fAmount)
+{
+	if(false == m_bIsChargingOverShield)
+	{
+		if(m_ePowerUpType == POWERUP_OVERSHIELD)
+		{
+			m_fOverShield -= _fAmount;
+		}
+		else
+		{
+			m_fCurrentShield -= _fAmount;
+			ResetRechargeTimer();
+		}
+	}
+}
+
+/*
+** Only used in hardcore mode
+*
+* SubtractPic
+* @author Michael McQuarrie
+* @return void
+*/
+void
+CTank::SubtractPic()
+{
+	//Get random pic
+	EPIC ePic = static_cast<EPIC>((rand() % 5 )+ 1);
+
+	//Make sure it wont make them negative
+	if (!(m_iBulletDamageIncreasePIC <= 0 &&
+		m_iExtraShieldPIC <= 0 &&
+		m_iMineExplodeRadiusIncreasePIC <= 0 &&
+		m_iMoveSpeedIncreasePIC <= 0 &&
+		m_iProjectileSpeedIncreasePIC <= 0))
+	{
+		//get a valid pic
+		while (GetPIC(ePic) - 1 < 0)
+		{
+			ePic = static_cast<EPIC>((rand() % 5 )+ 1);
+		}
+
+		//Subtract it
+		SetPIC(ePic,(GetPIC(ePic) - 1));
+	}
+}
+
+/*
+* This returns the max overshield
+* @author Rigardt de Vries
+* @return the max overshield
+*/
+float32
+CTank::GetMaxOverShield()
+{
+    return (m_fMaxOverShield);
+}
+/*
+* This increases when a player kills his team mate
+* @author Carsten Scholz
+*/
+void
+CTank::TeamKilled()
+{
+	++m_iTeamKills;
+}
+/*
+* This returns the amount of team members killed
+* @author Carsten Scholz
+* @return the amount of team members killed
+*/
+int32
+CTank::GetTeamKills()
+{
+	return (m_iTeamKills);
+}
+/*
+* This increases everytime the player kills an enemy
+* @author Carsten Scholz
+*/
+void
+CTank::EnemyKilled()
+{
+	++m_iEnemyKilled;
+}
+/*
+* This returns the amount of enemies killed
+* @author Carsten Scholz
+* @return the amount of enemies killed
+*/
+int32
+CTank::GetEnemiesKilled()
+{
+	return(m_iEnemyKilled);
+}
+/*
+* This returns the amount of deaths the tank has suffered
+* @author Carsten Scholz
+* @return the amount of deaths
+*/
+int32
+CTank::GetNumDeaths()
+{
+	return (m_iNumDeaths);
+}
+/*
+* This increases the number of deaths the player has suffered
+* @author Carsten Scholz
+*/
+void
+CTank::PlayerDead()
+{
+	++m_iNumDeaths;
+}
+/*
+* This returns the amount of flags captured by the player
+* @author Carsten Scholz
+* @return the amount of flags captured
+*/
+int32
+CTank::NumFlagsCaptured()
+{
+	return(m_iNumFlagsCaptured);
+}
+/*
+* This increases the number of flags captured by the player
+* @author Carsten Scholz
+*/
+void
+CTank::FlagCaptured()
+{
+	++m_iNumFlagsCaptured;
+}
+
+/*
+* Checks the cooldown of the mine and sets stuff 
+* This is all put into here to save space in the process
+*
+* @author Michael McQuarrie
+* @param _fDeltaTick
+* 
+* @return void
+*/
+void
+CTank::CheckMineCool(float32 _fDeltaTick)
+{
+	if(GetMine() == 0)
+	{
+		m_fMineCoolDown += _fDeltaTick;
+		if(m_fMineCoolDown >= 5.0f)
+		{
+			SetMineCool(true);
+			m_fMineCoolDown = 0.0f;
+		}
+	}
+}
+/*
+* Sets the Mine Cool bool
+*
+* @author Michael McQuarrie
+* @param _bCool
+* 
+* @return void
+*/
+
+void
+CTank::SetMineCool(bool _bCool)
+{
+	m_bIsMineCool = _bCool;
+}
+
+/*
+* Gets the Mine Cool bool
+*
+* @author Michael McQuarrie
+* 
+* @return m_bIsMineCool
+*/
+bool
+CTank::GetMineCool()
+{
+	return(m_bIsMineCool);
+}
+
+/*
+* This returns the has aimed bool
+* @author Rigardt de Vries
+* @return m_bAimed
+*/
+bool
+CTank::HasAimed()
+{
+	return (m_bAimed);
+}
+
+/*
+* This returns the has moved bool
+* @author Rigardt de Vries
+* @return m_bMoved
+*/
+bool
+CTank::HasMoved()
+{
+	return (m_bMoved);
+}
+
+/*
+* This returns the has shot bool
+* @author Rigardt de Vries
+* @return m_bShot
+*/
+bool
+CTank::HasShot()
+{
+	if (m_bShot == true)
+	{
+		int32 i = 0;
+	}
+	return (m_bShot);
+}
+
+/*
+* sets the aimed bool
+* @author Rigardt de Vries
+* @param _bAimed			the new aimed bool value
+* @return void
+*/
+void
+CTank::SetAimed(bool _bAimed)
+{
+	m_bAimed = _bAimed;
+}

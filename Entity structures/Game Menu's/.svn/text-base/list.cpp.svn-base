@@ -1,0 +1,196 @@
+// 
+//  Diploma of Interactive Gaming 
+//  Game Development Faculty 
+//  Media Design School 
+//  Auckland
+//  New Zealand
+// 
+//  (c) 2005-2010 Media Design School
+//
+//  File Name   :   list.cpp
+//  Description :   list.cppfor implementation of list.h
+//  Author      :   Rigardt de Vries
+//  Mail        :   rigardt.vries@mediadesign.school.nz
+//
+
+// Library Includes
+
+// Local Includes
+#include "button.h"
+#include "../../engine/graphics and sound/fontmanager.h"
+#include "../../engine/graphics and sound/renderer.h"
+#include "../../engine/totalcubedomination.h"
+#include "../../engine/viewport/viewport.h"
+
+// This Includes
+#include "list.h"
+
+// Static Variables
+uint32 CList::s_uiFontID = BAD_ID;
+
+// Static Function Prototypes
+
+// Implementation
+
+CList::CList()
+: m_pSelectedButton(0)
+, m_iSelectedIndex(-1)
+{
+    m_Color = 0xffffffff;
+}
+
+CList::~CList()
+{
+	for (uint32 i = 0; i < m_vecButtons.size(); ++i)
+	{
+		delete m_vecButtons[i];
+		m_vecButtons[i] = 0;
+	}
+
+    m_pSelectedButton = 0;
+
+    s_uiFontID = BAD_ID;
+}
+
+/*
+* This function initialises the list.
+* @author Rigardt de Vries
+* @param _vec3Position              the position of the list's centre.
+* @return true if successful.
+*/
+bool
+CList::Initialise(D3DXVECTOR2 _vec2Position)
+{  
+
+    m_matWorld._41 = _vec2Position.x;
+    m_matWorld._42 = _vec2Position.y;
+
+    m_pSelectedButton = 0;
+
+	return (true);
+}
+
+void
+CList::Process(float32 _fDeltaTick)
+{
+	for(uint32 ui = 0; ui < m_vecButtons.size(); ++ui)
+	{
+		m_vecButtons[ui]->Process(_fDeltaTick);
+	}
+
+    for (uint32 ui = 0; ui < m_vecButtons.size(); ++ui)
+    {
+        int32 iIndexDistance = abs(m_iSelectedIndex - (int32)ui);
+        float32 fColorFade = (float32)iIndexDistance * 0.2f;
+        m_Color.a = 1.0f - fColorFade;
+        m_vecButtons[ui]->SetColor(m_Color);
+    }
+    m_Color = 0xFFFFFFFF;
+
+    // Add to viewports.
+	CTotalCubeDomination::GetInstance().GetRenderer()
+		->AddToViewport(this, RENDERTYPE_3DCOORDS | RENDERTYPE_OPAQUE, 0);
+}
+
+void
+CList::Draw()
+{	
+    RECT rect;
+	for(uint32 ui = 0; ui < m_vecButtons.size(); ++ui)
+	{
+        // getting y position.
+        int32 iIndexDistance = m_iSelectedIndex - (int32)ui;
+        int32 iPostion = iIndexDistance * -50;
+
+        // setting the rect.
+        rect.left = (LONG)m_matWorld._41 - 50;
+        rect.right = rect.left + 250;
+        rect.top = ((LONG)m_matWorld._42 + iPostion) - 20;
+        rect.bottom = rect.top + 40;
+
+        CFontManager::GetInstance().Draw(s_uiFontID, m_vecButtons[ui]->GetMapName().c_str(), &rect, DT_LEFT | DT_VCENTER, m_vecButtons[ui]->GetColor());
+	}
+}
+
+CButton*
+CList::Addbutton()
+{
+	CButton* pButton = new CButton;
+
+	m_vecButtons.push_back(pButton);
+
+	if (!m_pSelectedButton)
+	{
+		m_pSelectedButton = m_vecButtons.back();
+		m_iSelectedIndex = static_cast<int>(m_vecButtons.size() -1);
+	}
+	
+	return (pButton);
+}
+
+/*
+* Loads the assests for a list
+* @author Rigardt de Vries
+* @return void
+*/
+void
+CList::LoadAssets()
+{
+    if (BAD_ID == s_uiFontID)
+    {
+        s_uiFontID = CFontManager::GetInstance().CreateDirect3DFont(42, 12, 400, false, "Arial");
+    }
+}
+
+/*
+* Moves the selection down the list.
+* @author Rigardt de Vries
+* @return void
+*/
+void
+CList::MoveDownList()
+{
+	if (m_vecButtons.empty()) return;
+
+    if (m_iSelectedIndex < (int)(m_vecButtons.size() - 1))
+    {
+        m_pSelectedButton = m_vecButtons[++m_iSelectedIndex];
+    }
+}
+
+/*
+* Moves the selection up the list.
+* @author Rigardt de Vries
+* @return void
+*/
+void
+CList::MoveUpList()
+{
+	if (m_vecButtons.empty()) return;
+
+    if (m_iSelectedIndex > 0)
+    {
+        m_pSelectedButton = m_vecButtons[--m_iSelectedIndex];
+    }
+}
+
+/*
+* Returns the selected button's string.
+* @author Rigardt de Vries
+* @return the btton's string.
+*/
+int
+CList::Select()
+{
+    return (m_iSelectedIndex);
+}
+
+/*
+* Resets the list
+* @author Rigardt de Vries
+* @return void
+*/
+void
+CList::Reset()
+{
+}

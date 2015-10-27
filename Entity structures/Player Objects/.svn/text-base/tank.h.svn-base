@@ -1,0 +1,291 @@
+// 
+//  Diploma of Interactive Gaming 
+//  Game Development Faculty 
+//  Media Design School 
+//  Auckland
+//  New Zealand
+// 
+//  (c) 2005-2010 Media Design School
+//
+//  File Name   :   tank.h
+//  Description :   Declaration for Ctank
+//  Author      :   Rigardt de Vries
+//  Mail        :   rigardt.vries@mediadesign.school.nz
+//
+
+#ifndef __IGFEB10_MODULE_TANK_H__
+#define __IGFEB10_MODULE_TANK_H__
+
+// Library Includes
+#include <d3d9.h>
+#include <d3dx9.h>
+#include <list>
+
+// Local Includes
+#include "../renderentity.h"
+#include "../../angle.h"
+#include "Power up/powerup.h"
+
+// Types
+const float32 FACE_TRANSITION_TIME = 0.5f;
+const float32 FACE_TRANSITION_RECIPROCAL = 1.0f / FACE_TRANSITION_TIME;
+const float32 TANK_TURN_RATE = D3DX_PI * 4.0f;
+const float32 BASE_TANK_SHIELD = 100.0f;
+
+// Prototypes
+class CProjectile;
+class CMine;
+class CFlag;
+class CCamera;
+class CBullet;
+class CEMPBomb;
+
+class CTank : public CRenderEntity
+{
+	// Member Functions
+public:
+	CTank();
+	virtual ~CTank();
+
+	bool Initialise(D3DXVECTOR3 _vec3Position, uint32 _uiTextureID, uint32 _uiModelID, ETeam _eTeam,
+					EFacePosition _eFace, uint32 _uiOverShieldModelID, uint32 _uiOverShieldTextureID,
+					uint32 _uiShieldTextureID);
+
+	virtual void Process(float32 _fDeltaTick);
+	virtual void Draw();
+
+	void ShootPlasma();
+	void ShootEMP();
+	void DropMine();
+
+	void Move(float32 _fDeltaTick, EDirection _sDirection);
+	void MoveToTarget(float32 _fDeltaTick);
+	void UpdateTargetPosition();
+
+	void StartTransition(EFacePosition _eTargetFace);
+
+	uint32 GetEMPCount();
+	void SetEMPCount(uint32 _uiEMPCount);
+	void RechargeEMP();
+
+	const D3DXMATRIX& GetWorldMatrix() const;
+
+	void SetMaxShield(float32 _fShield);
+	void SetCurrentShield(float32 _fShield);
+	void SetMovementSpeed(float32 _fSpeed);
+	void SetEMPCoolDown(float32 _fCoolDown);
+	void SetPlasmaCoolDown(float32 _fCoolDown);
+	void SetShieldRechargeRate(float32 _fRate);
+	void SetShieldRechargeTimer(float32 _fTime);
+	void SetAlive(bool bAlive);
+	void SetTeam(ETeam _eTeam);
+	void SetFace(EFacePosition _eFace);
+
+	void SetPosition(const D3DXVECTOR3& _vec3Position);
+	void Respawn(const TPoint& _tLocation);
+
+	bool GetAlive();
+	bool GetDisabled() const;
+
+	ETeam GetTeam();
+
+	EFacePosition GetFacePosition();
+
+	float32 GetMaxShield();
+    float32 GetMaxOverShield();
+	float32 GetCurrentShield();
+	float32 GetMovementSpeed();	
+	float32 GetEMPCoolDown();
+	float32 GetPlasmaCoolDown();
+	float32 GetShieldRechargeRate();
+	float32 GetShieldRechargeTimer();
+
+	const D3DXVECTOR3& GetPosition() const;
+	const D3DXVECTOR2& GetPosition2D() const;
+	const D3DXVECTOR3& GetDirection() const;
+    const D3DXVECTOR3& GetTransitioningDirection() const;
+    const D3DXVECTOR3& GetTransitioningRight() const;
+    const D3DXVECTOR3& GetTransitioningUp() const;
+	const D3DXVECTOR3& GetMovement() const;
+
+	void SetShootRightAndDir(D3DXVECTOR3& _vec3ShootDir, D3DXVECTOR3& _vec3ShootRight);
+
+	void ResetRechargeTimer();
+	void Shutdown();
+
+    void SetTurretModelID(uint32 _uiModelID);
+
+    int32 GetPIC(EPIC _ePIC);
+    void SetPIC(EPIC _ePIC, int32 _iPICValue);
+
+	void AddBullet(CBullet *_pBullet);
+
+	void AddPic();
+	void SubtractPic();
+
+    std::list<CBullet*>& GetBulletList();
+
+	void DeleteBullet();
+
+	void RotateTurret(float32 _fX, float32 _fY, float32 _fDeltaTick);
+
+	void SetFlag(CFlag* _pFlag);
+	CFlag* GetFlag();
+
+    void SetOnFaultyMagPlate(bool _IsOn, const D3DXVECTOR3& _vec3Direction);
+
+	bool HasFlag();
+	void RemoveFlag();
+
+	CEMPBomb* GetEMPBomb();
+
+	CMine* GetMine();
+
+	void SetPowerUp(EPowerUpType _ePowerType);
+	EPowerUpType GetPowerUp();
+	void SetViewport(uint32 _uiID);
+	uint32 GetViewportID();
+
+    bool IsTransitioning();
+
+	void Die();
+    void Reset();
+
+	bool IsChargingOverShield();
+	void SetOverShield(float32 _fShield);
+	float32 GetCurrentOverShield();
+
+	void DecrementShield(float32 _fAmount);
+	void SetMineCool(bool _bCool);
+	bool GetMineCool();
+
+	int32 GetTeamKills();
+	int32 GetEnemiesKilled();
+	int32 GetNumDeaths();
+	int32 NumFlagsCaptured();
+
+	void TeamKilled();
+	void EnemyKilled();
+	void PlayerDead();
+	void FlagCaptured();
+	
+	bool HasMoved();
+	bool HasShot();
+	bool HasAimed();
+	void SetAimed(bool _bAimed);
+
+protected:
+	void CheckMineCool(float32 _fDeltaTick);
+
+private:
+
+	// Member Variables
+public:
+
+protected:
+	std::list<CBullet*> m_listBullets;
+
+	CAngle m_CurrentAngle;
+	CAngle m_TargetAngle;
+	float32 m_fTurretAngle;
+	float32 m_fTurretTargetAngle;
+	float32 m_fRespawnCameraTimer;
+	float32 m_fRespawnCameraEnd;
+
+    EFacePosition m_eTargetFace;
+	D3DXQUATERNION m_quatTransitionAngle;
+    D3DXQUATERNION m_quatBaseRotation;
+    D3DXQUATERNION m_quatOriginAngle;
+	float32 m_fTransitionTime;
+    
+    D3DXMATRIX m_matTurretWorld;
+
+	uint32 m_uiEMPCount;
+	uint32 m_uiTextureID;
+	uint32 m_uiModelID;
+	uint32 m_uiTurretModelID;
+	uint32 m_uiTankID;
+	uint32 m_uiOverShieldModelID;
+	uint32 m_uiOverShieldTextureID;
+	uint32 m_uiShieldTextureID;
+
+	CMine* m_pMine;
+	CEMPBomb* m_pEMP;
+	CFlag* m_pFlag;
+
+    EDirection m_sDirection;
+
+	int32 m_iExtraShieldPIC;
+	int32 m_iProjectileSpeedIncreasePIC;
+	int32 m_iBulletDamageIncreasePIC;
+	int32 m_iMoveSpeedIncreasePIC;
+	int32 m_iMineExplodeRadiusIncreasePIC;
+
+	int32 m_iTeamKills;
+	int32 m_iEnemyKilled;
+	int32 m_iNumDeaths;
+	int32 m_iNumFlagsCaptured;
+
+	float32 m_fMovementSpeed;
+	float32 m_fMaxShield;
+	float32 m_fCurrentShield;
+	float32 m_fMaxOverShield;
+	float32 m_fOverShield;
+	float32 m_fPlasmaCoolDown;
+	float32 m_fEMPCoolDown;
+	float32 m_fShieldRechargeTimer;
+	float32 m_fShieldRechargeRate;
+	float32 m_fPowerUpTimer;
+	float32 m_fMineCoolDown;
+
+	float32 m_fDamaged;
+
+	ETeam m_eTeam;
+	EFacePosition m_eFacePosition;
+	EPowerUpType m_ePowerUpType;
+
+	D3DXVECTOR3 m_vec3Position;
+	D3DXVECTOR3 m_vec3Up;
+	D3DXVECTOR3 m_vec3Right;
+	D3DXVECTOR3 m_vec3Direction;
+	D3DXVECTOR3 m_vec3TurretOffset;
+	D3DXVECTOR3 m_vec3BaseTurretOffset;
+    D3DXVECTOR3 m_vec3TransitionUp;
+    D3DXVECTOR3 m_vec3TransitionDirection;
+    D3DXVECTOR3 m_vec3TransitionRight;
+	D3DXVECTOR3 m_vec3ShootDir;
+	D3DXVECTOR3 m_vec3ShootRight;
+    D3DXVECTOR3 m_vec3MoveEffectDirection;
+	D3DXVECTOR3 m_vec3Movement;
+	
+	D3DXVECTOR2 m_vec2Position;
+	//float32 tankHalfLengthT;	//half of the tank's length (in tile units)
+	//float32 tankHalfWidthT;		//half of the tank's width (in tile units)
+
+    bool m_bAlive;
+	bool m_bTransitioning;
+    bool m_bTurning;
+    bool m_bOnFaultyMagPlate;
+	bool m_bShutDown;
+	bool m_bTurret;
+	bool m_bIsChargingOverShield;
+	bool m_bIsMineCool;
+	bool m_bAimed;
+	bool m_bMoved;
+	bool m_bShot;
+
+	bool m_bIsMovingToTarget;
+	D3DXVECTOR2 m_vec2LastTargetPosition;
+	D3DXVECTOR2 m_vec2NextTargetPosition;
+
+	int32 m_iNumMoves;
+
+	static uint32 s_uiSoundDamageID;
+	static uint32 s_uiSoundDieID;
+
+private:
+
+}; 
+
+#endif // __IGFEB10_MODULE_TANK_H__
+

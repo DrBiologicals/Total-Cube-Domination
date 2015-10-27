@@ -1,0 +1,41 @@
+K 25
+svn:wc:ra_dav:version-url
+V 127
+/svn/IGFEB10/!svn/ver/2923/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/HUD
+END
+hud.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 135
+/svn/IGFEB10/!svn/ver/2923/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/HUD/hud.cpp
+END
+spritemanager.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 145
+/svn/IGFEB10/!svn/ver/1426/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/HUD/spritemanager.cpp
+END
+hud.h
+K 25
+svn:wc:ra_dav:version-url
+V 133
+/svn/IGFEB10/!svn/ver/2898/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/HUD/hud.h
+END
+sprite.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 138
+/svn/IGFEB10/!svn/ver/1426/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/HUD/sprite.cpp
+END
+spritemanager.h
+K 25
+svn:wc:ra_dav:version-url
+V 143
+/svn/IGFEB10/!svn/ver/1426/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/HUD/spritemanager.h
+END
+sprite.h
+K 25
+svn:wc:ra_dav:version-url
+V 136
+/svn/IGFEB10/!svn/ver/1426/TeamA/Working%20Solution/Total%20Cube%20Domination/Total%20Cube%20Domination/Entity%20structures/HUD/sprite.h
+END

@@ -1,0 +1,644 @@
+// 
+//  Diploma of Interactive Gaming 
+//  Game Development Faculty 
+//  Media Design School 
+//  Auckland
+//  New Zealand
+// 
+//  (c) 2005-2010 Media Design School
+//
+//  File Name   :   menustate.cpp
+//  Description :   menustate.cppfor implementation of menustate.h
+//  Author      :   Rigardt de Vries
+//  Mail        :   rigardt.vries@mediadesign.school.nz
+//
+
+// Library Includes
+
+// Local Includes
+#include "../totalcubedomination.h"
+#include "../viewport/viewport.h"
+#include "../viewport/camera.h"
+#include "../../igutils.h"
+#include "../../Entity structures/Game Menu's/menucube.h"
+#include "../../Entity structures/Game Menu's/text.h"
+#include "../graphics and sound/renderer.h"
+#include "../graphics and sound/billboardmanager.h"
+#include "../graphics and sound/fontmanager.h"
+#include "../graphics and sound/texturemanager.h"
+#include "../graphics and sound/lightmanager.h"
+#include "menu.h"
+#include "../../entity structures/game menu's/playerselector.h"
+#include "../input/input.h"
+#include "../input/inputhandler.h"
+#include "../../entity structures/entitymanager.h"
+#include "../graphics and sound/lightmanager.h"
+#include "../../entity structures/game menu's/staticgraphic.h"
+#include "../../entity structures/game menu's/levelpreview.h"
+#include "../../Engine/Game/gamestate.h"
+#include "../graphics and sound/texturemanager.h"
+#include "../graphics and sound/modelmanager.h"
+#include "../../entity structures/game menu's/button.h"
+
+// This Includes
+#include "menustate.h"
+
+// Static Variables
+
+// Static Function Prototypes
+
+// Implementation
+CMenuState::CMenuState()
+: m_eActiveMenu(MAIN_MENU)
+, m_fBackgroundWidth(0.0f)
+, m_fBackgroundHeight(0.0f)
+, m_fBackgroundDistance(0.0f)
+, m_iDifficulty(0)
+, m_fCurrentTime(0.0f)
+{
+	memset(m_apMenus, 0, sizeof(m_apMenus));
+}
+
+CMenuState::~CMenuState()
+{
+	for (int i = 0; i < MENU_MAX; ++i)
+	{
+		delete m_apMenus[i];
+	}
+
+	memset(m_apMenus, 0, sizeof(m_apMenus));
+}
+
+/*
+* 
+* 
+* @return bool
+*/
+bool
+CMenuState::Initialise()
+{
+	// Set viewport.
+	uint32 uiNumViewports = 1;
+
+	CRenderer* pRenderer = CTotalCubeDomination::GetInstance().GetRenderer();
+    pRenderer->SetNumViewports(uiNumViewports);
+#ifdef _DEBUG
+	pRenderer->GetViewport(0)->CreateCamera(D3DXToRadian(45), 0.1f, 100);
+#else
+	uint32 uiCamID1 = pRenderer->GetViewport(0)->CreateCamera(D3DXToRadian(45), 0.1f, 100);
+#endif // _DEBUG
+
+	// Set background size/distance for the billboards to use.
+	m_fBackgroundWidth = static_cast<float32>(CTotalCubeDomination::GetInstance().GetRenderer()->GetViewport(0)
+											->GetWidth() / 615.0);
+	m_fBackgroundHeight = static_cast<float32>(CTotalCubeDomination::GetInstance().GetRenderer()->GetViewport(0)
+											->GetHeight() / 615.0);
+	m_fBackgroundDistance = 1.0f;
+	m_iDifficulty = 0;
+
+	// Create camera.
+	VALIDATE(CreateMainMenu());
+	VALIDATE(CreatePlayerSelectMenu());
+	VALIDATE(CreateInstructions());
+	VALIDATE(CreateCredits());
+	VALIDATE(CreateLevelSelect());
+	VALIDATE(CreateDifficultyMenu());
+
+	// Keep this in please!
+	SetActiveMenu(MAIN_MENU);
+	//SetActiveMenu(PLAYER_SELECT_MENU);
+
+	D3DLIGHT9 light;
+    ZeroMemory(&light, sizeof(light) );
+    light.Type = D3DLIGHT_DIRECTIONAL;
+    light.Ambient.b = 1.0f;
+    light.Ambient.r = 1.0f;
+    light.Ambient.g = 1.0f;
+    light.Ambient.a = 1.0f;
+    light.Direction = D3DXVECTOR3(0.0f, -1.0f, 0.0f);
+
+    uint32 uiAmbientLightID = CLightManager::GetInstance().CreateLight(light);
+    CLightManager::GetInstance().SetLightActive(uiAmbientLightID, true);
+
+	return (true);
+}
+
+/*
+* 
+* 
+* @param float _fDeltaTick
+* @return void 
+*/
+void
+CMenuState::Process(float _fDeltaTick)
+{
+	m_apMenus[m_eActiveMenu]->Process(_fDeltaTick);
+
+	// Check to see if the current menu needs to change, and set it to the 
+	// next appropriate menu.
+	CheckForMenuChange(_fDeltaTick);
+#ifdef _DEBUG
+//	m_pOwner->GetRenderer()->Process(_fDeltaTick);
+#endif //_DEBUG
+}
+
+/**
+* 
+* Sets the current active menu (and all menu items in it) to false.
+* Sets the new menu passed in to active (inc. items).
+* 
+* author Rebeccah Cox
+* @param EMenu _eMenu
+* @return void 
+*/
+void
+CMenuState::SetActiveMenu(EMenu _eMenu)
+{
+	for(uint32 i = 0; i < CTotalCubeDomination::GetInstance().GetRenderer()->GetNumViewports(); ++i)
+	{
+		CTotalCubeDomination::GetInstance().GetRenderer()->GetViewport(i)->ClearRenderQueue();
+	}
+
+	// Set current active menu to not active.
+	m_apMenus[m_eActiveMenu]->SetMenuItemsToActive(false);
+
+	// Set new active menu.
+	m_eActiveMenu = _eMenu;
+	m_apMenus[m_eActiveMenu]->SetMenuItemsToActive(true);
+
+	// Move camera back when in main menu.
+	if(MAIN_MENU == m_eActiveMenu || LEVEL_SELECT_MENU == m_eActiveMenu)
+	{
+		CTotalCubeDomination::GetInstance().GetRenderer()->GetViewport(0)->GetCamera(0)
+			->SetView3D(D3DXVECTOR3(1, 0, 0), D3DXVECTOR3(0, 1, 0), D3DXVECTOR3(0, 0, 1), D3DXVECTOR3(0, 0, -30));
+	}
+	else
+	{
+		CTotalCubeDomination::GetInstance().GetRenderer()->GetViewport(0)->GetCamera(0)
+			->SetView3D(D3DXVECTOR3(1, 0, 0), D3DXVECTOR3(0, 1, 0), D3DXVECTOR3(0, 0, 1), D3DXVECTOR3(0, 0, 0));
+	}
+}
+
+/**
+* 
+* Checks if player one has pressed the back key, to go back to the main menu.
+* 
+* @author Rebeccah Cox
+* @return void 
+*/
+void
+CMenuState::CheckButtonPresses()
+{
+	// If exit button (back) is held:
+	if(true == CInputHandler::GetInstance().IsControlTriggered(CONTROL_EXIT, 0))
+	{
+		// Go straight to main menu.
+		SetActiveMenu(MAIN_MENU);
+	}
+}
+
+bool
+CMenuState::CreateMainMenu()
+{
+	m_apMenus[MAIN_MENU] = new CMenu;
+
+	CMenuCube* pMenuCube = new CMenuCube;
+
+	uint32 uiMenuItemCount = 0;
+
+	// Create background with a CStaticGraphic object.
+	CStaticGraphic* pBackgroundGraphic = new CStaticGraphic();
+
+	uint32 uiTextureInstructID = CTextureManager::GetInstance().CreateTexture("textures/Menu Textures/MenuBackground.png");
+	uint32 uiBillboardID = CBillboardManager::GetInstance().CreateBillboard(D3DXVECTOR3(0.0f,0.0f,0.0f), m_fBackgroundWidth * 45.0f, m_fBackgroundHeight * 45.0f);
+
+	pBackgroundGraphic->Initialise(D3DXVECTOR3(0.0f, 0.0f, 15.0f), 0.0f, 0.0f, uiBillboardID, uiTextureInstructID);
+
+	m_apMenus[MAIN_MENU]->AddMenuItem(pBackgroundGraphic);
+	++uiMenuItemCount;
+
+	VALIDATE(pMenuCube->Initialise());
+
+	m_apMenus[MAIN_MENU]->AddMenuItem(pMenuCube);
+	m_apMenus[MAIN_MENU]->SetMenuCubeID(uiMenuItemCount);
+	++uiMenuItemCount;
+
+	return (true);
+}
+
+/**
+* 
+* Creates and initialises a new CMenu object, and the four CPlayerSelector
+*	objects that it contains.
+* 
+* @author Rebeccah Cox
+* @return bool
+*/
+bool
+CMenuState::CreatePlayerSelectMenu()
+{
+	const float32 fPositionMultiplier = 0.101f;
+	const float32 fSizeMultiplier = 0.4f;
+	uint32 uiMenuItemCount = 0;
+
+	// Instantiate player select menu.
+	m_apMenus[PLAYER_SELECT_MENU] = new CMenu;
+	m_apMenus[PLAYER_SELECT_MENU]->Initialise();
+
+	// Create background with a CStaticGraphic object.
+	CStaticGraphic* pBackgroundGraphic = new CStaticGraphic();
+
+	uint32 uiTextureInstructID = CTextureManager::GetInstance().CreateTexture("textures/Menu Textures/MenuBackground.png");
+	uint32 uiBillboardID = CBillboardManager::GetInstance().CreateBillboard(D3DXVECTOR3(0.0f,0.0f,0.0f), m_fBackgroundWidth, m_fBackgroundHeight);
+
+	pBackgroundGraphic->Initialise(D3DXVECTOR3(0.0f, 0.0f, 1.0f), 0.0f, 0.0f, uiBillboardID, uiTextureInstructID);
+	m_apMenus[PLAYER_SELECT_MENU]->AddMenuItem(pBackgroundGraphic);
+	++uiMenuItemCount;
+
+	float32 fDistance = m_fBackgroundDistance - 0.01f;
+
+	// Create and add the four player select boxes.
+	uint32 uiControllerID = 0;
+	CPlayerSelector* pTempSelector = new CPlayerSelector();
+
+	// First box (top left).
+	pTempSelector->Initialise(D3DXVECTOR3(-(m_fBackgroundWidth*fPositionMultiplier),
+								m_fBackgroundHeight*fPositionMultiplier, fDistance),
+								uiControllerID++, m_fBackgroundWidth*fSizeMultiplier,
+								m_fBackgroundHeight*fSizeMultiplier);
+	m_apMenus[PLAYER_SELECT_MENU]->AddMenuItem(pTempSelector);
+	m_apMenus[PLAYER_SELECT_MENU]->SetPlayerSelectorID(uiMenuItemCount);
+	++uiMenuItemCount;
+
+	// Second box (top right).
+	pTempSelector = new CPlayerSelector();
+	pTempSelector->Initialise(D3DXVECTOR3(m_fBackgroundWidth*fPositionMultiplier,
+								m_fBackgroundHeight*fPositionMultiplier, fDistance),
+								uiControllerID++, m_fBackgroundWidth*fSizeMultiplier,
+								m_fBackgroundHeight*fSizeMultiplier);
+	m_apMenus[PLAYER_SELECT_MENU]->AddMenuItem(pTempSelector);
+	m_apMenus[PLAYER_SELECT_MENU]->SetPlayerSelectorID(uiMenuItemCount);
+	++uiMenuItemCount;
+
+	// Third box (bottom left).
+	pTempSelector = new CPlayerSelector();
+	pTempSelector->Initialise(D3DXVECTOR3(-(m_fBackgroundWidth*fPositionMultiplier),
+								-(m_fBackgroundHeight*fPositionMultiplier), fDistance),
+								uiControllerID++, m_fBackgroundWidth*fSizeMultiplier,
+								m_fBackgroundHeight*fSizeMultiplier);
+	m_apMenus[PLAYER_SELECT_MENU]->AddMenuItem(pTempSelector);
+	m_apMenus[PLAYER_SELECT_MENU]->SetPlayerSelectorID(uiMenuItemCount);
+	++uiMenuItemCount;
+
+	// Fourth box (bottom right).
+	pTempSelector = new CPlayerSelector();
+	pTempSelector->Initialise(D3DXVECTOR3(m_fBackgroundWidth*fPositionMultiplier,
+								-(m_fBackgroundHeight*fPositionMultiplier), fDistance),
+								uiControllerID++, m_fBackgroundWidth*fSizeMultiplier,
+								m_fBackgroundHeight*fSizeMultiplier);
+	m_apMenus[PLAYER_SELECT_MENU]->AddMenuItem(pTempSelector);
+	m_apMenus[PLAYER_SELECT_MENU]->SetPlayerSelectorID(uiMenuItemCount);
+	++uiMenuItemCount;
+
+	pTempSelector = 0;
+
+	return (true);
+}
+
+/**
+* 
+* Runs different checks depending on the current menu state.
+* eg. the PLAYER_SELECT_MENU checks if all of the player selector objects have
+*		chosen a team, then calls ChangeCurrentMenu() and passes in LEVEL_SELECT_MENU.
+* 
+* @author Rebeccah Cox
+* @return void
+*/
+void
+CMenuState::CheckForMenuChange(float _fDeltaTick)
+{
+	switch(m_eActiveMenu)
+	{
+		case MAIN_MENU:
+		{
+			if(true == m_apMenus[MAIN_MENU]->GetMenuItem(m_apMenus[MAIN_MENU]->GetMenuCubeID())->IsAdvancing())
+			{
+				SetActiveMenu(PLAYER_SELECT_MENU);
+			}
+			else if(true == m_apMenus[MAIN_MENU]->GetMenuItem(m_apMenus[MAIN_MENU]->GetMenuCubeID())->IsAdvancing())
+			{
+				PostQuitMessage(0);
+			}
+			break;
+		}
+
+		case PLAYER_SELECT_MENU:
+		{
+			// Check for change request.
+			// Iterate through menu items.
+			for(uint32 iIndex = 0; iIndex < m_apMenus[PLAYER_SELECT_MENU]->GetNumberOfMenuItems(); ++iIndex)
+			{
+				if(true == m_apMenus[PLAYER_SELECT_MENU]->IsAPlayerSelectorID(iIndex))
+				{
+					// If the menu item is a CPlayerSelector, and is exiting, set MAIN_MENU to active.
+					if(true == m_apMenus[PLAYER_SELECT_MENU]->GetMenuItem(iIndex)->IsExiting())
+						//&& true == m_apMenus[PLAYER_SELECT_MENU]->IsAPlayerSelectorID(iIndex))
+					{
+						SetActiveMenu(MAIN_MENU);
+						break;
+					}
+				}
+			}
+
+			// Change the screen to level select if all of the connected players
+			// have chosen teams.
+			if(true == HavePlayersChosenTeams())
+			{
+				SetActiveMenu(DIFFICULTY_MENU);
+			}
+			break;
+		}
+
+		case LEVEL_SELECT_MENU:
+		{
+			if(CInputHandler::GetInstance().IsControlTriggered(CONTROL_BACK, 0))
+			{
+				SetActiveMenu(CTotalCubeDomination::GetInstance().SetProgramState(new CMenuState));
+			}
+
+			if(CInputHandler::GetInstance().IsControlTriggered(CONTROL_SELECT, 0))
+			{
+				CTotalCubeDomination::GetInstance().GetRenderer()->GetViewport(0)->GetCamera(0)
+					->SetView3D(D3DXVECTOR3(1, 0, 0), D3DXVECTOR3(0, 1, 0), D3DXVECTOR3(0, 0, 1), D3DXVECTOR3(0, 0, 0));
+
+				CTotalCubeDomination::GetInstance().StartGame();
+			}
+			break;
+		}
+
+		case INSTRUCTIONS_MENU:
+		{
+			if(CInputHandler::GetInstance().IsControlTriggered(CONTROL_BACK, 0))
+			{
+				SetActiveMenu(MAIN_MENU);
+			}
+			break;
+		}
+
+		case CREDITS_MENU:
+		{
+			if(CInputHandler::GetInstance().IsControlTriggered(CONTROL_BACK, 0))
+			{
+				SetActiveMenu(MAIN_MENU);
+			}
+			break;
+		}
+		case DIFFICULTY_MENU:
+		{
+			m_fCurrentTime += _fDeltaTick;
+
+			if(m_iDifficulty == 0)
+			{
+				m_apDifficultyButton[0]->SetPosition(D3DXVECTOR3(0.0f,0.15f,1.0f));
+				m_apDifficultyButton[2]->SetPosition(D3DXVECTOR3(0.0f,5.0f,1.0f));
+
+				m_apDifficultyButton[1]->SetPosition(D3DXVECTOR3(0.0f,-0.15f,1.0f));
+				m_apDifficultyButton[3]->SetPosition(D3DXVECTOR3(0.0f,5.0f,1.0f));			
+			}
+			else
+			{
+				m_apDifficultyButton[0]->SetPosition(D3DXVECTOR3(0.0f,5.0f,1.0f));
+				m_apDifficultyButton[2]->SetPosition(D3DXVECTOR3(0.0f,0.15f,1.0f));
+
+				m_apDifficultyButton[1]->SetPosition(D3DXVECTOR3(0.0f,5.0f,1.0f));
+				m_apDifficultyButton[3]->SetPosition(D3DXVECTOR3(0.0f,-0.15f,1.0f));
+			}
+
+			if(m_fCurrentTime > 0.2f)
+			{
+
+				if(CInputHandler::GetInstance().GetControlMagnitude(CONTROL_MOVEUP, 0) < -0.9f)
+				{
+					m_iDifficulty -= 1;
+
+					if(m_iDifficulty < 0)
+					{
+						m_iDifficulty = 1;
+					}
+				}
+				if(CInputHandler::GetInstance().GetControlMagnitude(CONTROL_MOVEDOWN, 0) > 0.9f)
+				{
+					m_iDifficulty += 1;
+
+					if(m_iDifficulty > 1)
+					{
+						m_iDifficulty = 0;
+					}
+
+				}
+
+				m_fCurrentTime = 0;
+			}
+
+			if(CInputHandler::GetInstance().IsControlTriggered(CONTROL_SELECT, 0))
+			{
+				CProgramState::SetDifficulty(m_iDifficulty);
+				SetActiveMenu(LEVEL_SELECT_MENU);
+			}
+			if(CInputHandler::GetInstance().IsControlTriggered(CONTROL_BACK, 0))
+			{
+<<<<<<< .mine
+				SetActiveMenu(CTotalCubeDomination::GetInstance().SetProgramState(new CMenuState));
+=======
+				SetActiveMenu(PLAYER_SELECT_MENU);
+>>>>>>> .r2461
+			}		
+			break;
+		}
+
+		default:break;
+	}
+}
+
+/**
+* 
+* Checks if all of the players have either chosen teams, or are not connected.
+* NOTE: Player one must be connected.
+* 
+* @author Rebeccah Cox
+* @return bool - true if all four player selector objects have acceptable values.
+*/
+bool
+CMenuState::HavePlayersChosenTeams()
+{
+	uint32 iPlayersAdvancing = 0;
+	uint32 iPlayersChecked = 0;
+
+	// Iterate through menu items.
+	for(uint32 iIndex = 0; iIndex < m_apMenus[PLAYER_SELECT_MENU]->GetNumberOfMenuItems(); ++iIndex)
+	{
+		// If the menu item is a player selector object:
+		if(true == m_apMenus[PLAYER_SELECT_MENU]->IsAPlayerSelectorID(iIndex))
+		{
+			++iPlayersChecked;
+
+			if(true == m_apMenus[PLAYER_SELECT_MENU]->GetMenuItem(iIndex)->IsAdvancing())
+			{
+				++iPlayersAdvancing;
+			}
+
+			// If four player selectors have been checked, return true.
+			if(m_apMenus[PLAYER_SELECT_MENU]->GetNumPlayerSelectors() == iPlayersChecked)
+			{
+				if(0 == iPlayersAdvancing)
+				{
+					return (false);
+				}
+
+				// Set the number of human players.
+				CProgramState::SetNumPlayer(iPlayersAdvancing);
+				return (true);
+			}
+		}
+	}
+
+	// All player selector objects that are being used are not ready yet.
+	return (false);
+}
+
+bool
+CMenuState::CreateInstructions()
+{
+	CStaticGraphic* pStatGraphic = new CStaticGraphic;
+
+	uint32 uiTextureInstructID = CTextureManager::GetInstance().CreateTexture("textures/Menu Textures/MenuBackground.png");
+	uint32 uiBillboardID = CBillboardManager::GetInstance().CreateBillboard(D3DXVECTOR3(0.0f,0.0f,0.0f), m_fBackgroundWidth, m_fBackgroundHeight);
+
+	pStatGraphic->Initialise(D3DXVECTOR3(0.0f,0.0f,1.0f), 0.0f, 0.0f, uiBillboardID, uiTextureInstructID);
+
+	m_apMenus[INSTRUCTIONS_MENU] = new CMenu;
+
+	m_apMenus[INSTRUCTIONS_MENU]->AddMenuItem(pStatGraphic);
+
+	CText* pText = new CText;
+
+	uint32 _uiTextID = CFontManager::GetInstance().CreateDirect3DFont(16,12,500,false,"Verdana");
+
+	RECT rect;
+
+	rect.bottom = CTotalCubeDomination::GetInstance().GetRenderer()->GetViewport(0)
+											->GetHeight();
+	rect.top = 0;
+	rect.right = CTotalCubeDomination::GetInstance().GetRenderer()->GetViewport(0)
+											->GetWidth();
+	rect.left = 0;
+
+	pText->Initialise(rect, DT_TOP | DT_LEFT, 0xffff0000, "Test for instructions", _uiTextID);
+
+	m_apMenus[INSTRUCTIONS_MENU]->AddMenuItem(pText);
+
+	pStatGraphic = new CStaticGraphic;
+
+	uiTextureInstructID = CTextureManager::GetInstance().CreateTexture("textures/Instuctions.png");
+	uiBillboardID = CBillboardManager::GetInstance().CreateBillboard(D3DXVECTOR3(0.0f,0.0f,0.0f), m_fBackgroundWidth * 0.8f, m_fBackgroundHeight * 0.8f);
+
+	pStatGraphic->Initialise(D3DXVECTOR3(0.0f,0.0f,1.0f), 0.0f, 0.0f, uiBillboardID, uiTextureInstructID);
+
+	m_apMenus[INSTRUCTIONS_MENU]->AddMenuItem(pStatGraphic);
+
+	return (true);
+}
+bool
+CMenuState::CreateCredits()
+{
+	CStaticGraphic* pStatGraphic = new CStaticGraphic;
+
+	uint32 uiTextureCreditsID = CTextureManager::GetInstance().CreateTexture("textures/Menu Textures/Credits.png");
+	uint32 uiBillboardID = CBillboardManager::GetInstance().CreateBillboard(D3DXVECTOR3(0.0f,0.0f,0.0f), m_fBackgroundWidth, m_fBackgroundHeight);
+
+	VALIDATE(pStatGraphic->Initialise(D3DXVECTOR3(0.0f,0.0f,1.0f), 0.0f, 0.0f, uiBillboardID, uiTextureCreditsID));
+
+	m_apMenus[CREDITS_MENU] = new CMenu;
+
+	m_apMenus[CREDITS_MENU]->AddMenuItem(pStatGraphic);
+
+	return (true);
+}
+bool
+CMenuState::CreateLevelSelect()
+{
+	CStaticGraphic* pStatGraphic = new CStaticGraphic;
+	
+	uint32 uiTextureCreditsID = CTextureManager::GetInstance().CreateTexture("textures/Menu Textures/MenuBackground.png");
+	uint32 uiBillboardID = CBillboardManager::GetInstance().CreateBillboard(D3DXVECTOR3(0.0f,0.0f,0.0f), m_fBackgroundWidth * 45.0f, m_fBackgroundHeight * 45.0f);
+
+	VALIDATE(pStatGraphic->Initialise(D3DXVECTOR3(0.0f,0.0f,15.0f), 0.0f, 0.0f, uiBillboardID, uiTextureCreditsID));
+
+	m_apMenus[LEVEL_SELECT_MENU] = new CMenu;
+
+	m_apMenus[LEVEL_SELECT_MENU]->AddMenuItem(pStatGraphic);
+
+	CLevelPreviewer* pLevelPreview = new CLevelPreviewer;
+
+	VALIDATE(pLevelPreview->Initialise(D3DXVECTOR3(8.0f,0.0f,10.0f)));
+
+	m_apMenus[LEVEL_SELECT_MENU]->AddMenuItem(pLevelPreview);
+
+	return (true);
+}
+bool
+CMenuState::CreateDifficultyMenu()
+{
+	CStaticGraphic* pStatGraphic = new CStaticGraphic;
+
+	uint32 uiTextureInstructID = CTextureManager::GetInstance().CreateTexture("textures/Menu Textures/MenuBackground.png");
+	uint32 uiBillboardID = CBillboardManager::GetInstance().CreateBillboard(D3DXVECTOR3(0.0f,0.0f,0.0f), m_fBackgroundWidth, m_fBackgroundHeight);
+
+	pStatGraphic->Initialise(D3DXVECTOR3(0.0f,0.0f,1.0f), 0.0f, 0.0f, uiBillboardID, uiTextureInstructID);
+
+	m_apMenus[DIFFICULTY_MENU] = new CMenu;
+	m_apMenus[DIFFICULTY_MENU]->AddMenuItem(pStatGraphic);
+
+	//////////
+
+	uiTextureInstructID = CTextureManager::GetInstance().CreateTexture("textures/Menu Textures/NormalModeSelected.png");
+	uiBillboardID = CBillboardManager::GetInstance().CreateBillboard(D3DXVECTOR3(0.0f,0.15f,0.0f), m_fBackgroundWidth * 0.5f, m_fBackgroundHeight * 0.5f);
+
+	m_apDifficultyButton[0] = new CButton;
+
+	m_apDifficultyButton[0]->Initialise(D3DXVECTOR3(0.0f,0.15f,1.0f), uiBillboardID, uiTextureInstructID);
+
+	m_apMenus[DIFFICULTY_MENU]->AddMenuItem(m_apDifficultyButton[0]);
+
+	/////////
+	uiTextureInstructID = CTextureManager::GetInstance().CreateTexture("textures/Menu Textures/HardcoreModeNotSelected.png");
+	uiBillboardID = CBillboardManager::GetInstance().CreateBillboard(D3DXVECTOR3(0.0f,-0.15f,0.0f), m_fBackgroundWidth * 0.5f, m_fBackgroundHeight * 0.5f);
+
+	m_apDifficultyButton[1] = new CButton;
+
+	m_apDifficultyButton[1]->Initialise(D3DXVECTOR3(0.0f,-0.15f,1.0f), uiBillboardID, uiTextureInstructID);
+
+	m_apMenus[DIFFICULTY_MENU]->AddMenuItem(m_apDifficultyButton[1]);
+
+	//////////
+	uiTextureInstructID = CTextureManager::GetInstance().CreateTexture("textures/Menu Textures/NormalModeNotSelected.png");
+	uiBillboardID = CBillboardManager::GetInstance().CreateBillboard(D3DXVECTOR3(0.0f,5.0f,0.0f), m_fBackgroundWidth * 0.5f, m_fBackgroundHeight * 0.5f);
+
+	m_apDifficultyButton[2] = new CButton;
+
+	m_apDifficultyButton[2]->Initialise(D3DXVECTOR3(0.0f,5.0f,1.0f), uiBillboardID, uiTextureInstructID);
+
+	m_apMenus[DIFFICULTY_MENU]->AddMenuItem(m_apDifficultyButton[2]);
+
+	/////////
+	uiTextureInstructID = CTextureManager::GetInstance().CreateTexture("textures/Menu Textures/HardcoreModeSelected.png");
+	uiBillboardID = CBillboardManager::GetInstance().CreateBillboard(D3DXVECTOR3(0.0f,5.0f,0.0f), m_fBackgroundWidth * 0.5f, m_fBackgroundHeight * 0.5f);
+
+	m_apDifficultyButton[3] = new CButton;
+
+	m_apDifficultyButton[3]->Initialise(D3DXVECTOR3(0.0f,5.0f,1.0f), uiBillboardID, uiTextureInstructID);
+
+	m_apMenus[DIFFICULTY_MENU]->AddMenuItem(m_apDifficultyButton[3]);
+
+	return true;
+}
